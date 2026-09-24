@@ -190,7 +190,14 @@ J.drawComposite = (renderer, ctx, plan, t, opt = {}) => {
       if (video.readyState >= 2 && vw > 0 && vh > 0) {
         const ratio = (settings.fit === 'cover' ? Math.max : Math.min)(cw / vw, ch / vh);
         const dw = vw * ratio, dh = vh * ratio;
-        ctx.drawImage(video, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+        // Clip transforms affect only footage. Restore before dimming and text
+        // so a mirrored/fading clip never mirrors or fades its lyric overlay.
+        ctx.save();
+        try {
+          ctx.globalAlpha = opt.clip && J.clipOpacity ? J.clipOpacity(opt.clip, t) : 1;
+          if (opt.clip && opt.clip.flip) ctx.setTransform(-1, 0, 0, 1, cw, 0);
+          ctx.drawImage(video, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+        } finally { ctx.restore(); }
       }
       if (dim > 0) { ctx.fillStyle = `rgba(0,0,0,${dim})`; ctx.fillRect(0, 0, cw, ch); }
     }

@@ -39,10 +39,10 @@
 
       <div class="sec mv-section">
         <div class="sec-h"><h2>MVに文字を重ねる</h2><span class="mv-pill">VIDEO + TYPE</span></div>
-        <p class="hint">動画を読み込み、歌詞の動きをそのまま重ねて書き出せます。</p>
+        <p class="hint">複数の動画をつなぎ、カットや速度を調整して歌詞の動きを重ねられます。</p>
         <div class="row">
-          <label class="file mv-load">MV動画を読み込む<input id="videoFile" type="file" accept="video/*,.mp4,.webm,.mov,.m4v"></label>
-          <button id="btnRemoveVideo" class="ghost small" hidden>動画を外す</button>
+          <label class="file mv-load">動画を追加／再読み込み<input id="videoFile" type="file" accept="video/*,.mp4,.webm,.mov,.m4v" multiple></label>
+          <button id="btnRemoveVideo" class="ghost small" hidden>動画をすべて外す</button>
         </div>
         <div id="videoName" class="muted audio-name" role="status" aria-live="polite">動画なし · MP4 / WebM など</div>
         <p id="videoWarning" class="mv-warning" role="status" hidden></p>
@@ -59,7 +59,7 @@
           <label class="mv-slider">上下の位置 <output id="videoYValue"></output><input id="videoY" type="range" min="0" max="100" step="1"></label>
           <label class="mv-slider">映像を暗くする <output id="videoDimValue"></output><input id="videoDim" type="range" min="0" max="80" step="1"></label>
           <label class="row"><input id="videoShadow" type="checkbox">文字に影を付ける</label>
-          <p class="hint">歌詞の開始・終了は下の行リストで調整。MVの長さで書き出します。動画は端末内で処理されます。</p>
+          <p class="hint">歌詞の開始・終了は下の行リストで調整。編集した動画の長さで書き出します。動画は端末内で処理されます。</p>
         </div>
       </div>
 
@@ -108,7 +108,48 @@
         <button id="btnShuffle" class="accent" title="設定はそのままで構成だけ再抽選（ロックした行は維持）">シャッフル</button>
         <button id="btnOmakase" class="primary" title="スタイル・雰囲気・演出・配色をまるごとランダムに（キー R）">おまかせ</button>
       </div>
-      <canvas id="timeline" aria-label="タイムライン（クリックで移動）"></canvas>
+      <section id="videoEditor" class="video-editor" aria-labelledby="videoEditorTitle" hidden>
+        <div class="sec-h video-editor-heading">
+          <h2 id="videoEditorTitle">動画編集</h2>
+          <span id="clipSummary" class="clip-summary mono" role="status" aria-live="polite"></span>
+        </div>
+        <div id="clipTimeline" class="clip-timeline" role="group" aria-label="動画クリップ（選んで編集）"></div>
+        <p id="clipSelection" class="clip-selection" role="status" aria-live="polite">クリップを選択してください</p>
+        <p id="clipMissing" class="mv-warning" role="status" hidden></p>
+        <div class="clip-toolbar">
+          <div class="clip-actions" role="group" aria-label="選択クリップの編集">
+            <button id="clipSplit" type="button" class="accent" title="現在の再生位置でクリップを2つに分ける">再生位置で分割</button>
+            <button id="clipDuplicate" type="button" title="選択中のクリップを複製する">複製</button>
+            <button id="clipMoveLeft" type="button" aria-label="選択クリップを1つ前へ移動" title="ひとつ前へ移動">← 前へ</button>
+            <button id="clipMoveRight" type="button" aria-label="選択クリップを1つ後ろへ移動" title="ひとつ後ろへ移動">後ろへ →</button>
+            <button id="clipDelete" type="button" class="clip-delete" title="選択中のクリップを削除する">削除</button>
+          </div>
+          <div class="clip-history" role="group" aria-label="動画編集の履歴">
+            <button id="editUndo" type="button" class="ghost" aria-label="動画編集を元に戻す" title="動画編集を元に戻す">↶ 戻す</button>
+            <button id="editRedo" type="button" class="ghost" aria-label="動画編集をやり直す" title="動画編集をやり直す">↷ やり直す</button>
+          </div>
+        </div>
+        <div class="clip-settings">
+          <div class="clip-trim">
+            <label class="field" for="clipIn">元動画の開始（秒）<input id="clipIn" type="number" min="0" step="0.01" inputmode="decimal"></label>
+            <button id="clipSetIn" type="button" class="ghost" title="プレビューの再生位置を切り出しの開始にする">再生位置を開始に</button>
+            <label class="field" for="clipOut">元動画の終了（秒）<input id="clipOut" type="number" min="0" step="0.01" inputmode="decimal"></label>
+            <button id="clipSetOut" type="button" class="ghost" title="プレビューの再生位置を切り出しの終了にする">再生位置を終了に</button>
+          </div>
+          <div class="clip-adjustments">
+            <label class="field" for="clipSpeed">再生速度<select id="clipSpeed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×（通常）</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option></select></label>
+            <label class="field" for="clipFadeIn">フェードイン（秒）<input id="clipFadeIn" type="number" min="0" step="0.1" value="0" inputmode="decimal"></label>
+            <label class="field" for="clipFadeOut">フェードアウト（秒）<input id="clipFadeOut" type="number" min="0" step="0.1" value="0" inputmode="decimal"></label>
+            <label class="clip-volume" for="clipVolume"><span>クリップの音量</span><output id="clipVolumeValue" for="clipVolume">100%</output><input id="clipVolume" type="range" min="0" max="100" step="1" value="100"></label>
+          </div>
+        </div>
+        <div class="clip-apply-row">
+          <label class="clip-flip"><input id="clipFlip" type="checkbox">左右反転</label>
+          <button id="clipApply" type="button" class="primary">クリップに適用</button>
+        </div>
+        <p class="hint clip-hint">歌詞の時刻は、編集後の動画全体のタイムラインに対応します。カットや速度変更後は歌詞のタイミングも確認してください。速度を変えると元動画の音声の高さも変わります。</p>
+      </section>
+      <canvas id="timeline" aria-label="歌詞タイムライン（クリックで移動）"></canvas>
       <div class="cutinfo" id="cutInfo"></div>
     </section>
 

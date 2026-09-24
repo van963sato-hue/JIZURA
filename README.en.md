@@ -19,17 +19,21 @@ Lyric syntax: `I remember/the dawn` makes a manual cut; `*word*` emphasizes a wo
 
 Use **Save** and **Open** for `.jizura.json` projects. **Export for AE** creates arrangement data to import into the After Effects panel. Generated videos and images belong to their creators; rights to music and lyrics remain with their respective rights holders. Project files, lyrics and audio are handled in the browser. Google Fonts are loaded as needed. The tool is MIT licensed; see [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-## Add animated lyrics to an existing music video
+## Edit videos and add animated lyrics
 
-1. Import a local video in **Add lyrics to an MV**. MP4, WebM and other formats work when the browser supports their codecs. The file stays in your browser.
-2. Enter lyrics and edit each line's **Start / End (s)**. You can also import LRC timestamps or use **Tap to sync**. Manual edits override LRC timing; setting an earlier end leaves a gap for an instrumental passage.
-3. Importing a new video automatically adopts its exact aspect ratio. To export another shape, change the aspect ratio in export settings and choose **Fit whole video** or **Fill frame**. Adjust the center / lower / upper text placement, scale, horizontal and vertical position, shadow and video dimming.
-4. Select **Video audio**, **Imported audio** or **Mute**. Imported audio replaces the video's soundtrack. If the browser cannot extract the video audio, import a separate audio file or explicitly select Mute.
-5. Export **MP4** or a **PNG sequence** to composite the footage and animated lyrics. The output uses the original video's duration. **Transparent PNG** exports only the lyric animation for compositing elsewhere. MP4 requires WebCodecs and a supported encoder; Chrome or Edge is recommended.
+1. Import one or more local videos. They become consecutive clips on a single editing timeline. MP4, WebM and other formats work when the browser supports their codecs. The files stay in your browser.
+2. Select a clip and set its **Start / End** range using seconds within the source video. Move the preview to a point inside a clip and use **Split** to cut it in two. You can duplicate, move and delete clips, and undo or redo video edits.
+3. Adjust each clip's **Speed (0.25–4×), volume, fade in / out and horizontal flip**, then click **Apply to clip** to commit these settings and the source range. Set volume to 0% to mute a clip. Trimming or changing speed changes its length in the final timeline. Source audio changes pitch with speed. Fades affect the footage and its source audio; lyrics and separately imported music do not fade with the clip.
+4. Enter lyrics and edit each line's **Start / End (s)** on the final timeline. LRC timestamps and **Tap to sync** also work; manual timing overrides LRC. An earlier end leaves a gap for an instrumental passage. **Adding, removing, reordering, trimming or changing the speed of footage does not move lyric times automatically.** Arrange the footage before aligning the lyrics. Leave the lyrics empty to edit and export video without text.
+5. Choose the output aspect ratio, then **Fit whole video** or **Fill frame**. Adjust center / lower / upper text placement, scale, horizontal and vertical position, shadow and video dimming.
+6. Select **Video audio**, **Imported audio** or **Mute**. Video audio follows each clip's range, speed, volume, mute and fades. Imported audio replaces it with a soundtrack beginning at the start of the final timeline. If the browser cannot extract video audio, import a separate audio file or select Mute.
+7. Export **MP4** or a **PNG sequence** to composite the edited footage and animated lyrics. Output length is the total duration of the edited clips. **Transparent PNG** exports only the lyric animation for compositing elsewhere. MP4 requires WebCodecs and a supported encoder; Chrome or Edge is recommended.
 
-MV mode retains the text animation and palette while omitting opaque style backgrounds, HUD, global post-processing and transitions. Automatic title cards and interlude cuts are also disabled. Some existing layouts contain graphic bands or panels; choose a layout that leaves the important parts of your footage visible.
+The footage uses one consecutive track without gaps. Simultaneous video layers and overlapping cross-dissolves are not supported. Combining a clip's fade out with the next clip's fade in produces a transition through black. Long or high-resolution sources can use substantial device memory; try a short section before exporting a long sequence.
 
-Saved project JSON includes lyrics, timing, MV settings and the source video's filename, but does not embed video or audio files. Re-select the same video and any separate audio when reopening a project. MV compositing is a browser-edition feature.
+MV mode retains the text animation and palette while omitting opaque style backgrounds, HUD, global post-processing and lyric-cut transitions. Automatic title cards and interlude cuts are also disabled. Some existing layouts contain graphic bands or panels; choose a layout that leaves the important parts of your footage visible. Without imported video, the original lyric-video workflow remains available.
+
+**Save and reopen:** Project JSON stores lyrics, timing, MV settings, clip order and edits, and source-file metadata. It does not embed video or audio files. Re-select the same video files when reopening; matching source metadata reconnects them to the existing clips, including split and duplicated clips. Re-select any separate audio file as well. Video editing and compositing are browser-edition features; footage edits are not transferred to the After Effects panels.
 
 ## Build and publish
 

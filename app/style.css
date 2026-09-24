@@ -152,6 +152,58 @@ button.play { width: 40px; height: 34px; padding: 0; font-size: 14px; }
 .chip.h { border-color: #55525c; }
 .hint { font-size: 12px; color: var(--muted); }
 
+/* ---------- video editing ---------- */
+.video-editor { padding: 14px; border: 1px solid var(--line2); border-top: 2px solid var(--amber); border-radius: var(--r); background: var(--panel); display: grid; gap: 12px; min-width: 0; }
+.video-editor-heading { flex-wrap: wrap; }
+.video-editor-heading h2 { color: var(--text); font-size: 12px; }
+.clip-summary { color: var(--amber); font-size: 11px; overflow-wrap: anywhere; }
+.clip-timeline { display: flex; align-items: stretch; gap: 4px; min-width: 0; width: 100%; overflow-x: auto; padding: 3px 2px 8px; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; overscroll-behavior-x: contain; }
+.clip-timeline > button { position: relative; flex: 1 0 92px; min-width: 92px; min-height: 66px; max-width: 100%; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px; text-align: left; padding: 9px 10px; overflow: hidden; white-space: normal; border-color: #36514b; background: linear-gradient(135deg, rgba(22,244,212,.08), var(--raised)); color: var(--text); font-size: 11px; }
+.clip-timeline > button:hover { border-color: var(--cyan); background: #21332f; }
+.clip-timeline > button[aria-pressed=true], .clip-timeline > button.selected { border-color: var(--amber); box-shadow: inset 0 0 0 1px var(--amber); background: linear-gradient(135deg, rgba(245,165,12,.17), var(--raised)); color: var(--text); }
+.clip-timeline > button.playing::after { content: ''; position: absolute; bottom: 2px; left: 8px; right: 8px; height: 2px; border-radius: 2px; background: var(--cyan); pointer-events: none; }
+.clip-timeline > button.missing { border-style: dashed; color: var(--muted); }
+.clip-timeline .clip-name { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.clip-timeline .clip-time { color: var(--muted); font: 10px var(--mono); white-space: nowrap; }
+.clip-timeline .clip-index { color: var(--cyan); font: 10px var(--mono); }
+.clip-selection { color: var(--text); font-size: 12px; overflow-wrap: anywhere; margin: 0; }
+.video-editor .mv-warning { margin: 0; padding: 9px 10px; border: 1px dashed var(--amber); border-radius: var(--r); background: rgba(245,165,12,.06); }
+.clip-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.clip-actions, .clip-history { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.video-editor button { min-height: 38px; font-size: 11px; padding: 7px 10px; }
+.video-editor .clip-delete { color: var(--rose); }
+.clip-settings { display: grid; gap: 14px; padding: 12px 0 2px; border-top: 1px solid var(--line); }
+.clip-trim { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; align-items: end; gap: 8px; }
+.video-editor .field { min-width: 0; line-height: 1.5; }
+.video-editor input[type=number], .video-editor select { min-height: 38px; }
+.clip-adjustments { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; }
+.clip-volume { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px; color: var(--muted); font-size: 11px; }
+.clip-volume output { font: 11px var(--mono); color: var(--text); }
+.clip-volume input { grid-column: 1 / -1; width: 100%; margin: 0; min-height: 26px; accent-color: var(--cyan); }
+.clip-apply-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.clip-flip { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; min-height: 38px; cursor: pointer; }
+.clip-flip input { accent-color: var(--cyan); }
+.video-editor .clip-hint { margin: 0; font-size: 11px; line-height: 1.7; }
+
+@media (min-width: 1181px) and (max-width: 1560px) {
+  .clip-trim { grid-template-columns: minmax(0, 1fr) auto; }
+}
+@media (max-width: 760px) {
+  .video-editor { padding: 12px; gap: 12px; }
+  .clip-trim { grid-template-columns: minmax(0, 1fr) auto; }
+  .clip-toolbar { align-items: stretch; }
+  .clip-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .clip-actions #clipSplit { grid-column: 1 / -1; }
+  .clip-history { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .video-editor button, .video-editor input[type=number], .video-editor select { min-height: 44px; }
+  .clip-adjustments { gap: 10px 7px; }
+  .clip-adjustments .field { font-size: 10px; }
+  .clip-volume input { min-height: 36px; }
+  .clip-apply-row { padding-top: 2px; }
+  .clip-apply-row #clipApply { padding-inline: 16px; }
+  .clip-flip { min-height: 44px; }
+}
+
 /* ---------- right panel ---------- */
 .tabs { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); z-index: 2; }
 .tabs button { border: 0; border-radius: 0; background: transparent; padding: 11px 4px; color: var(--muted); border-bottom: 2px solid transparent; }

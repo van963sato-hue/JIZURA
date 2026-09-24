@@ -97,14 +97,101 @@ function closeEncoder(encoder) {
   if (encoder && encoder.state !== 'closed') { try { encoder.close(); } catch (e) {} }
 }
 
-function renderExport(renderer, ctx, plan, t, scale, video, settings, transparent = false) {
-  if (J.drawComposite) J.drawComposite(renderer, ctx, plan, t, { scale, video, settings, transparent });
+function renderExport(renderer, ctx, plan, t, scale, video, settings, transparent = false, clip = null) {
+  if (J.drawComposite) J.drawComposite(renderer, ctx, plan, t, { scale, video, settings, transparent, clip });
   else renderer.frame(ctx, plan, t, { scale, transparent });
 }
 
-/* ---------- MP4 ---------- */
-J.exportMP4 = async ({ plan, project, audio, video, quality = 'high', onProgress, signal }) => {
+function validateSequence(sequence) {
+  if (!sequence) return;
+  if (!sequence.timeline || !Array.isArray(sequence.timeline.clips) || !sequence.media || typeof sequence.media.get !== 'function') {
+    throw new Error('動画の編集情報を読み込めません。動画を読み込み直してください。');
+  }
+  for (const clip of sequence.timeline.clips) {
+    if (!sequence.media.get(clip.sourceId)) {
+      const name = clip.source && clip.source.name || clip.sourceId;
+      throw new Error(`動画「${name}」を再選択してください。元ファイルが読み込まれていません。`);
+    }
+  }
+}
+
+// Cache a decoder for each distinct source, independently of the live preview.
+// Seeking a reused source backwards is necessary after reorders and splits.
+function sequenceFrames(sequence, signal, transparent = false) {
+  const decoders = new Map();
+  return {
+    async at(t) {
+      checkExport(signal);
+      const clip = J.videoClipAt(sequence.timeline, t);
+      if (!clip) return { video: sequence.media.values().next().value || null, clip: null };
+      const source = sequence.media.get(clip.sourceId);
+      if (transparent) return { video: source, clip };
+      let video = decoders.get(clip.sourceId);
+      if (!video) {
+        video = await J.loadVideo(source.file, { signal });
+        decoders.set(clip.sourceId, video);
+      }
+      checkExport(signal);
+      await J.seekVideo(video.element, J.clipSourceTime(clip, t), signal);
+      checkExport(signal);
+      return { video, clip };
+    },
+    release() { for (const video of decoders.values()) J.releaseVideo(video); decoders.clear(); },
+  };
+}
+
+/* Edit source audio with the same cuts, order, speed and fades as the footage.
+   playbackRate intentionally changes pitch, matching video.preservesPitch=false. */
+J.renderSequenceAudio = async (sequence, { signal, sampleRate = 48000 } = {}) => {
   checkExport(signal);
+  validateSequence(sequence);
+  const timeline = sequence.timeline;
+  const audible = timeline.clips.filter(clip => clip.volume > 0);
+  if (!audible.length) return null;
+  for (const clip of audible) {
+    const source = sequence.media.get(clip.sourceId);
+    if (!source.audio || !source.audio.buffer) {
+      throw new Error(`動画「${source.name || clip.source && clip.source.name || clip.sourceId}」の音声を取得できません。このクリップを消音にするか、音楽ファイルを選んでください。`);
+    }
+  }
+  if (!(timeline.duration > 0) || !Number.isFinite(timeline.duration)) throw new Error('書き出す動画の長さを確認してください。');
+  const channels = Math.min(2, Math.max(...audible.map(clip => sequence.media.get(clip.sourceId).audio.buffer.numberOfChannels)));
+  const oc = new OfflineAudioContext(channels, Math.ceil(timeline.duration * sampleRate), sampleRate);
+  const nodes = [];
+  try {
+    for (const clip of audible) {
+      checkExport(signal);
+      const src = oc.createBufferSource(), gain = oc.createGain();
+      nodes.push(src, gain);
+      src.buffer = sequence.media.get(clip.sourceId).audio.buffer;
+      src.playbackRate.value = clip.speed;
+      src.connect(gain); gain.connect(oc.destination);
+      const duration = clip.duration;
+      const fadeIn = Math.min(duration, Math.max(0, clip.fadeIn || 0));
+      const fadeOut = Math.min(duration, Math.max(0, clip.fadeOut || 0));
+      const opacity = t => Math.max(0, Math.min(1, fadeIn ? t / fadeIn : 1, fadeOut ? (duration - t) / fadeOut : 1));
+      // Include the intersection when fades overlap, keeping the audio envelope
+      // identical to the visual minimum of fade-in and fade-out opacity.
+      const points = [0, duration, fadeIn, duration - fadeOut];
+      if (fadeIn + fadeOut > duration) points.push(duration * fadeIn / (fadeIn + fadeOut));
+      const times = [...new Set(points)].filter(t => t >= 0 && t <= duration).sort((a, b) => a - b);
+      gain.gain.setValueAtTime(clip.volume * opacity(0), clip.start);
+      for (const t of times) if (t > 0) gain.gain.linearRampToValueAtTime(clip.volume * opacity(t), clip.start + t);
+      src.start(clip.start, clip.in, clip.out - clip.in);
+      src.stop(clip.end);
+    }
+    const buffer = await abortable(oc.startRendering(), signal);
+    checkExport(signal);
+    return { buffer, duration: timeline.duration, name: '編集した動画音声' };
+  } finally {
+    for (const node of nodes) { try { node.disconnect(); } catch (e) {} }
+  }
+};
+
+/* ---------- MP4 ---------- */
+J.exportMP4 = async ({ plan, project, audio, video, sequence, quality = 'high', onProgress, signal }) => {
+  checkExport(signal);
+  validateSequence(sequence);
   const [w, h] = J.outputSize(project);
   const fps = plan.fps;
   const px = w * h * fps;
@@ -112,6 +199,14 @@ J.exportMP4 = async ({ plan, project, audio, video, quality = 'high', onProgress
   const vc = await J.pickVideoCodec(w, h, fps, bitrate);
   checkExport(signal);
   if (!vc) throw new Error('このブラウザは動画エンコード（WebCodecs）に対応していません。Chrome か Edge の最新版で開いてください。');
+  if (sequence) {
+    const source = J.videoSettings(project.video).audioSource;
+    if (source === 'mute' || project.includeAudio === false) audio = null;
+    else if (source === 'video') {
+      onProgress && onProgress(0, '編集した音声を準備中');
+      audio = await J.renderSequenceAudio(sequence, { signal });
+    }
+  }
   let ac = null;
   if (audio && audio.buffer && project.includeAudio !== false) {
     ac = await J.pickAudioCodec(48000, Math.min(2, audio.buffer.numberOfChannels));
@@ -123,6 +218,7 @@ J.exportMP4 = async ({ plan, project, audio, video, quality = 'high', onProgress
   if (ac) muxOpts.audio = { codec: ac.mux, numberOfChannels: Math.min(2, audio.buffer.numberOfChannels), sampleRate: ac.sr };
   const muxer = new Mp4Muxer.Muxer(muxOpts);
   let err = null, venc = null, aenc = null, exportVideo = null;
+  const frames = sequence ? sequenceFrames(sequence, signal) : null;
   const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) throw new Error('書き出し用の描画領域を作成できませんでした。');
@@ -132,7 +228,7 @@ J.exportMP4 = async ({ plan, project, audio, video, quality = 'high', onProgress
   const prevRes = J.glyphs.maxRes; J.glyphs.maxRes = h >= 1000 ? 768 : 512;
   try {
     // A separate decoder prevents export seeks from disturbing the preview.
-    if (video) exportVideo = await J.loadVideo(video.file, { signal });
+    if (video && !sequence) exportVideo = await J.loadVideo(video.file, { signal });
     checkExport(signal);
     venc = new VideoEncoder({
       output: (chunk, meta) => { try { muxer.addVideoChunk(chunk, meta); } catch (e) { err = e; } },
@@ -142,9 +238,10 @@ J.exportMP4 = async ({ plan, project, audio, video, quality = 'high', onProgress
     const videoShare = ac ? 0.9 : 0.99;
     for (let i = 0; i < total; i++) {
       checkExport(signal, err);
+      const frame = frames ? await frames.at(i / fps) : { video: exportVideo, clip: null };
       if (exportVideo) await J.seekVideo(exportVideo.element, i / fps, signal);
       checkExport(signal, err);
-      renderExport(R, ctx, plan, i / fps, scale, exportVideo, project.video);
+      renderExport(R, ctx, plan, i / fps, scale, frame.video, project.video, false, frame.clip);
       const vf = new VideoFrame(canvas, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
       try { venc.encode(vf, { keyFrame: i % Math.max(1, Math.round(fps * 2)) === 0 }); }
       finally { vf.close(); }
@@ -192,6 +289,7 @@ J.exportMP4 = async ({ plan, project, audio, video, quality = 'high', onProgress
   } finally {
     closeEncoder(venc); closeEncoder(aenc);
     if (exportVideo) J.releaseVideo(exportVideo);
+    if (frames) frames.release();
     J.glyphs.maxRes = prevRes;
     canvas.width = 0; canvas.height = 0;
   }
@@ -224,8 +322,9 @@ class ZipWriter {
     return new Blob([...this.parts, ...this.central, end.buffer], { type: 'application/zip' });
   }
 }
-J.exportPNGZip = async ({ plan, project, video, transparent, onProgress, signal, every = 1 }) => {
+J.exportPNGZip = async ({ plan, project, video, sequence, transparent, onProgress, signal, every = 1 }) => {
   checkExport(signal);
+  validateSequence(sequence);
   const [w, h] = J.outputSize(project);
   const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext('2d');
@@ -236,15 +335,17 @@ J.exportPNGZip = async ({ plan, project, video, transparent, onProgress, signal,
   const scale = w / plan.W;
   const step = Math.max(1, Math.floor(Number(every) || 1));
   let exportVideo = null;
+  const frames = sequence ? sequenceFrames(sequence, signal, transparent) : null;
   const prevRes = J.glyphs.maxRes; J.glyphs.maxRes = h >= 1000 ? 768 : 512;
   try {
     // Transparent sequences are an overlay asset: never include the MV pixels.
-    if (video && !transparent) exportVideo = await J.loadVideo(video.file, { signal });
+    if (video && !transparent && !sequence) exportVideo = await J.loadVideo(video.file, { signal });
     for (let i = 0; i < total; i += step) {
       checkExport(signal);
+      const frame = frames ? await frames.at(i / fps) : { video: exportVideo || (transparent ? video : null), clip: null };
       if (exportVideo) await J.seekVideo(exportVideo.element, i / fps, signal);
       checkExport(signal);
-      renderExport(R, ctx, plan, i / fps, scale, exportVideo || (transparent ? video : null), project.video, transparent);
+      renderExport(R, ctx, plan, i / fps, scale, frame.video, project.video, transparent, frame.clip);
       const blob = await abortable(new Promise(resolve => canvas.toBlob(resolve, 'image/png')), signal);
       if (!blob) throw new Error('PNG画像を作成できませんでした。出力解像度を下げて再試行してください。');
       const bytes = await abortable(blob.arrayBuffer(), signal);
@@ -257,6 +358,7 @@ J.exportPNGZip = async ({ plan, project, video, transparent, onProgress, signal,
     return zip.finish();
   } finally {
     if (exportVideo) J.releaseVideo(exportVideo);
+    if (frames) frames.release();
     J.glyphs.maxRes = prevRes;
     canvas.width = 0; canvas.height = 0;
   }

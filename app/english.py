@@ -1,6 +1,38 @@
 """English copy for the browser edition. The Japanese source stays authoritative."""
 
 BODY = {
+    '複数の動画をつなぎ、カットや速度を調整して歌詞の動きを重ねられます。': 'Join multiple videos, edit cuts and speed, and add animated lyrics.',
+    '動画を追加／再読み込み': 'Add / reimport videos',
+    '動画をすべて外す': 'Remove all videos',
+    '歌詞の開始・終了は下の行リストで調整。編集した動画の長さで書き出します。動画は端末内で処理されます。': 'Adjust lyric start and end times in the line list below. Export uses the edited video duration. Video processing stays on your device.',
+    '動画クリップ（選んで編集）': 'Video clips (select to edit)',
+    'クリップを選択してください': 'Select a clip',
+    '選択クリップの編集': 'Edit selected clip',
+    '現在の再生位置でクリップを2つに分ける': 'Split the clip at the current playback position',
+    '再生位置で分割': 'Split at playhead',
+    '選択中のクリップを複製する': 'Duplicate the selected clip',
+    '選択クリップを1つ前へ移動': 'Move the selected clip one place earlier',
+    '選択クリップを1つ後ろへ移動': 'Move the selected clip one place later',
+    'ひとつ前へ移動': 'Move one place earlier',
+    'ひとつ後ろへ移動': 'Move one place later',
+    '← 前へ': '← Earlier', '後ろへ →': 'Later →',
+    '選択中のクリップを削除する': 'Delete the selected clip',
+    '動画編集の履歴': 'Video edit history',
+    '動画編集を元に戻す': 'Undo video edit',
+    '動画編集をやり直す': 'Redo video edit',
+    '↶ 戻す': '↶ Undo', '↷ やり直す': '↷ Redo',
+    '元動画の開始（秒）': 'Source start (s)',
+    '元動画の終了（秒）': 'Source end (s)',
+    'プレビューの再生位置を切り出しの開始にする': 'Set the source start from the preview playback position',
+    'プレビューの再生位置を切り出しの終了にする': 'Set the source end from the preview playback position',
+    '再生位置を開始に': 'Set start here', '再生位置を終了に': 'Set end here',
+    '再生速度': 'Playback speed', '1×（通常）': '1× (normal)',
+    'フェードイン（秒）': 'Fade in (s)', 'フェードアウト（秒）': 'Fade out (s)',
+    'クリップの音量': 'Clip volume', '左右反転': 'Flip horizontally',
+    'クリップに適用': 'Apply to clip',
+    '歌詞の時刻は、編集後の動画全体のタイムラインに対応します。カットや速度変更後は歌詞のタイミングも確認してください。速度を変えると元動画の音声の高さも変わります。': 'Lyric times refer to the final edited timeline. Check them after changing cuts or speed. Source audio changes pitch with playback speed.',
+    '歌詞タイムライン（クリックで移動）': 'Lyric timeline (click to seek)',
+    '動画編集': 'Video editor', '複製': 'Duplicate', '削除': 'Delete',
     'MVに文字を重ねる': 'Add lyrics to an MV',
     '動画を読み込み、歌詞の動きをそのまま重ねて書き出せます。': 'Import a video, add animated lyrics and export the composite.',
     'MV動画を読み込む': 'Import MV video', '動画を外す': 'Remove video',
@@ -99,6 +131,19 @@ BODY = {
 }
 
 UI = {
+    '未読み込みの動画があります。元ファイルを追加してから書き出してください。': 'Some videos are missing. Reimport the source files before exporting.',
+    '未読み込みの動画があります。元ファイルを追加してから再生してください。': 'Some videos are missing. Reimport the source files before playing.',
+    '動画なし · 複数の動画を追加できます': 'No video · Add multiple videos',
+    '元ファイルを追加して再接続してください: ': 'Reimport source files to reconnect: ',
+    '音声を読み取れない動画があります。そのクリップの音量を0%にするか、別の曲を選んでください。': 'Some video audio could not be read. Set those clips to 0% volume or choose imported audio.',
+    '動画を追加して編集を始めてください': 'Add videos to start editing',
+    '未読み込み: ': 'Missing: ',
+    '未読み込み ${missing.length}本': '${missing.length} missing',
+    'クリップ · ': ' clips · ',
+    '開始と終了を動画の範囲内で指定してください。終了は開始より後にしてください。': 'Keep start and end within the source video. End must be later than start.',
+    '選択したクリップの中へ再生位置を移動してください。': 'Move the playhead inside the selected clip.',
+    '動画を読み込み中: ': 'Loading video: ',
+    '動画を再生できません。元ファイルを確認してください。': 'Could not play the video. Check the source file.',
     '（元動画）': ' (source video)',
     '再読み込みが必要: ': 'Reimport needed: ',
     '動画なし · MP4 / WebM など': 'No video · MP4, WebM and more',
@@ -176,6 +221,12 @@ UI = {
 }
 
 EXPORT = {
+    '動画の編集情報を読み込めません。動画を読み込み直してください。': 'Could not read the video edits. Reimport the videos.',
+    '動画「${name}」を再選択してください。元ファイルが読み込まれていません。': 'Reimport “${name}”. The source file is missing.',
+    '動画「${source.name || clip.source && clip.source.name || clip.sourceId}」の音声を取得できません。このクリップを消音にするか、音楽ファイルを選んでください。': 'Could not read audio from “${source.name || clip.source && clip.source.name || clip.sourceId}”. Mute this clip or select an imported audio file.',
+    '書き出す動画の長さを確認してください。': 'Check the duration of the video to export.',
+    '編集した動画音声': 'Edited video audio',
+    '編集した音声を準備中': 'Preparing edited audio',
     '音声を準備中': 'Preparing audio',
     'PNG画像を作成できませんでした。出力解像度を下げて再試行してください。': 'Could not create the PNG image. Lower the output resolution and try again.',
     'エンコーダーが停止しました。もう一度書き出してください。': 'The encoder stopped. Please export again.',
@@ -196,6 +247,12 @@ MEDIA = {
     '動画の読み込みがタイムアウトしました。ファイルの形式を確認してください。': 'Video loading timed out. Check the file format.',
     '動画の読み込みが完了していません。': 'The video has not finished loading.',
     '動画のフレーム取得がタイムアウトしました。別の形式で保存してお試しください。': 'Retrieving a video frame timed out. Try saving the video in another format.',
+}
+
+VIDEO_EDIT = {
+    '編集するクリップが見つかりません。タイムラインから選び直してください。': 'Could not find the clip to edit. Select it again on the timeline.',
+    '分割位置をクリップの内側へ動かしてください。分割後の両側に元動画の0.04秒以上が必要です。': 'Move the split point inside the clip. Each side needs at least 0.04 seconds of source footage.',
+    "'動画'": "'Video'",
 }
 
 AE_UI = {
@@ -369,4 +426,6 @@ def localize_js(source, filename):
         return replace_copy(source, EXPORT)
     if filename.endswith('10_video.js'):
         return replace_copy(source, MEDIA)
+    if filename.endswith('10a_edit.js'):
+        return replace_copy(source, VIDEO_EDIT)
     return source
