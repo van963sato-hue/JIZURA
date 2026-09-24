@@ -120,6 +120,14 @@ class Renderer {
       ctx.restore();
       ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
     }
+    // Image overlays need the style background separately from the lyrics so
+    // a layer can sit between them without inheriting text motion or colour.
+    if (opt.backgroundOnly) {
+      ctx.restore();
+      if (!opt.noPost) this.post(ctx, plan, t, tq, step, sc, scale, opt, allowFilter);
+      if (key && !opt.noPost) this.keyFinish(ctx, key, opt);
+      return;
+    }
     const shx = J.rs(step, 71) * shake * 16 * u, shy = J.rs(step, 72) * shake * 11 * u;
     // ---------- content passes ----------
     const passes = [

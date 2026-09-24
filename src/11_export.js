@@ -97,9 +97,21 @@ function closeEncoder(encoder) {
   if (encoder && encoder.state !== 'closed') { try { encoder.close(); } catch (e) {} }
 }
 
-function renderExport(renderer, ctx, plan, t, scale, video, settings, transparent = false, clip = null) {
-  if (J.drawComposite) J.drawComposite(renderer, ctx, plan, t, { scale, video, settings, transparent, clip });
+function renderExport(renderer, ctx, plan, t, scale, video, settings, transparent = false, clip = null, overlays = null) {
+  if (J.drawComposite) J.drawComposite(renderer, ctx, plan, t, { scale, video, settings, transparent, clip, overlays });
   else renderer.frame(ctx, plan, t, { scale, transparent });
+}
+
+function validateOverlays(overlays, project) {
+  const data = overlays && overlays.data || project.images;
+  if (!data || !Array.isArray(data.layers) || !data.layers.length) return;
+  for (const layer of data.layers) {
+    if (!overlays || !overlays.media || !overlays.media.get(layer.sourceId)) {
+      const source = (data.sources || []).find(s => s.id === layer.sourceId);
+      const name = source ? source.name : layer.sourceId;
+      throw new Error(`画像「${name}」を再選択してください。元ファイルが読み込まれていません。`);
+    }
+  }
 }
 
 function validateSequence(sequence) {
@@ -189,9 +201,10 @@ J.renderSequenceAudio = async (sequence, { signal, sampleRate = 48000 } = {}) =>
 };
 
 /* ---------- MP4 ---------- */
-J.exportMP4 = async ({ plan, project, audio, video, sequence, quality = 'high', onProgress, signal }) => {
+J.exportMP4 = async ({ plan, project, audio, video, sequence, overlays, quality = 'high', onProgress, signal }) => {
   checkExport(signal);
   validateSequence(sequence);
+  validateOverlays(overlays, project);
   const [w, h] = J.outputSize(project);
   const fps = plan.fps;
   const px = w * h * fps;
@@ -241,7 +254,7 @@ J.exportMP4 = async ({ plan, project, audio, video, sequence, quality = 'high', 
       const frame = frames ? await frames.at(i / fps) : { video: exportVideo, clip: null };
       if (exportVideo) await J.seekVideo(exportVideo.element, i / fps, signal);
       checkExport(signal, err);
-      renderExport(R, ctx, plan, i / fps, scale, frame.video, project.video, false, frame.clip);
+      renderExport(R, ctx, plan, i / fps, scale, frame.video, project.video, false, frame.clip, overlays);
       const vf = new VideoFrame(canvas, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
       try { venc.encode(vf, { keyFrame: i % Math.max(1, Math.round(fps * 2)) === 0 }); }
       finally { vf.close(); }
@@ -322,9 +335,10 @@ class ZipWriter {
     return new Blob([...this.parts, ...this.central, end.buffer], { type: 'application/zip' });
   }
 }
-J.exportPNGZip = async ({ plan, project, video, sequence, transparent, onProgress, signal, every = 1 }) => {
+J.exportPNGZip = async ({ plan, project, video, sequence, overlays, transparent, onProgress, signal, every = 1 }) => {
   checkExport(signal);
   validateSequence(sequence);
+  validateOverlays(overlays, project);
   const [w, h] = J.outputSize(project);
   const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext('2d');
@@ -345,7 +359,7 @@ J.exportPNGZip = async ({ plan, project, video, sequence, transparent, onProgres
       const frame = frames ? await frames.at(i / fps) : { video: exportVideo || (transparent ? video : null), clip: null };
       if (exportVideo) await J.seekVideo(exportVideo.element, i / fps, signal);
       checkExport(signal);
-      renderExport(R, ctx, plan, i / fps, scale, frame.video, project.video, transparent, frame.clip);
+      renderExport(R, ctx, plan, i / fps, scale, frame.video, project.video, transparent, frame.clip, overlays);
       const blob = await abortable(new Promise(resolve => canvas.toBlob(resolve, 'image/png')), signal);
       if (!blob) throw new Error('PNG画像を作成できませんでした。出力解像度を下げて再試行してください。');
       const bytes = await abortable(blob.arrayBuffer(), signal);

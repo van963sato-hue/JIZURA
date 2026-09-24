@@ -14,6 +14,7 @@ const ICON = {
 
 const S = { project: null, plan: null, audio: null, audioLoading: null, video: null, videoLoading: null, videoSeeking: false, seekId: 0, renderer: new J.Renderer(), playing: false, t: 0, t0: 0, loop: true, need: true, exporting: null, tap: null, slow: false, lineEls: [], curLine: -2 };
 Object.assign(S, { media: new Map(), editTimeline: { clips: [], duration: 0 }, activeClip: null, selectedClip: null, editPast: [], editFuture: [], sequenceAudio: null });
+Object.assign(S, { images: new Map(), imageLoading: null });
 const hasVideoEdit = () => !!(S.project && S.project.edit && S.project.edit.clips.length);
 const endEpsilon = () => Math.min(1e-6, S.plan.duration / 1000);
 
@@ -44,6 +45,7 @@ function mergeProject(p) {
   o.video = J.videoSettings(p && p.video);
   if (p && p.video && p.video.source && typeof p.video.source.name === 'string') o.video.source = p.video.source;
   o.edit = J.normalizeVideoEdit(p && p.edit, o.video.source);
+  o.images = J.normalizeImageOverlays(p && p.images);
   const en = J.defaultProject().enabled;
   for (const g of Object.keys(en)) en[g] = Object.assign(en[g], ((p && p.enabled) || {})[g] || {});
   o.enabled = en;
@@ -87,9 +89,10 @@ function replan() {
   S.editTimeline = J.buildVideoTimeline(S.project.edit);
   S.sequenceAudio = null;
   let planningProject = S.project;
-  if (hasVideoEdit()) {
+  if (hasVideoEdit() || S.project.images.layers.length) {
     // Full-frame transitions replace entrance/exit animations at planning time.
-    // Disable them before planning, preserving the saved non-MV choices.
+    // Disable them before planning for layered composition, preserving the
+    // choices saved for a lyric-only project.
     planningProject = Object.assign({}, S.project, {
       enabled: Object.assign({}, S.project.enabled, { trans: Object.fromEntries(J.order('trans').map(k => [k, false])) }),
       overrides: Object.fromEntries(Object.entries(S.project.overrides).map(([k, v]) => [k, Object.assign({}, v, { trans: null })])),
@@ -100,6 +103,9 @@ function replan() {
     S.plan.duration = S.editTimeline.duration;
     S.plan.cuts = S.plan.cuts.filter(c => c.line >= 0 && c.layout !== 'interlude' && c.start < S.plan.duration);
     S.plan.cuts.forEach((c, i) => { c.index = i; });
+  } else if (S.project.images.layers.length) {
+    const baseDuration = S.plan.lines.length || S.audio ? S.plan.duration : 0;
+    S.plan.duration = S.project.images.layers.reduce((duration, layer) => Math.max(duration, layer.end), baseDuration);
   }
   langNote();
   if (S.t > S.plan.duration) S.t = 0;
@@ -107,6 +113,7 @@ function replan() {
   S.need = true; autosave(); ensureFonts(); drawSwatch(); showNow();
   syncVideoUI();
   renderVideoEditor();
+  if (J.imageUI) J.imageUI.render();
   clearTimeout(warmTimer); warmTimer = setTimeout(warm, 450);
 }
 /* pre-decompose glyphs used by piece animations while the editor is idle, so playback does not hitch */
@@ -171,7 +178,8 @@ function draw() {
   const t0 = performance.now();
   const clip = J.videoClipAt(S.editTimeline, S.t);
   const media = S.video || (hasVideoEdit() ? { element: { readyState: 0 }, width: 0, height: 0 } : null);
-  J.drawComposite(S.renderer, ctx, S.plan, S.t, { scale: c.width / S.plan.W, fast: S.playing && S.slow, video: media, settings: S.project.video, clip });
+  const overlays = { data: S.project.images, media: S.images };
+  J.drawComposite(S.renderer, ctx, S.plan, S.t, { scale: c.width / S.plan.W, fast: S.playing && S.slow, video: media, settings: S.project.video, clip, overlays });
   const dt = performance.now() - t0;
   S.slow = S.playing ? (dt > 30 ? true : dt < 14 ? false : S.slow) : false;
   updateTimeUI(); drawTimeline(); updateCutInfo();
@@ -679,6 +687,8 @@ function baseName() {
 }
 async function runExport(kind) {
   if (S.exporting) return;
+  if (S.imageLoading) { toast('画像の読み込みが終わってから書き出してください。'); return; }
+  if (J.imageUI && J.imageUI.missingSources().length) { toast('未読み込みの画像があります。元ファイルを追加してから書き出してください。'); return; }
   if (S.videoLoading || S.audioLoading) { toast('動画・音声の読み込みが終わってから書き出してください。'); return; }
   if (missingVideoSources().length) { toast('未読み込みの動画があります。元ファイルを追加してから書き出してください。'); return; }
   if (kind === 'mp4' && hasVideoEdit() && S.project.includeAudio !== false && S.project.video.audioSource === 'audio' && !S.audio) {
@@ -689,6 +699,7 @@ async function runExport(kind) {
   pause();
   const project = JSON.parse(JSON.stringify(S.project)), plan = S.plan, video = S.video, audio = selectedAudio();
   const sequence = hasVideoEdit() ? { timeline: J.buildVideoTimeline(project.edit), media: new Map(S.media) } : null;
+  const overlays = { data: project.images, media: new Map(S.images) };
   const locked = [...document.querySelectorAll('button,input,select,textarea')].filter(el => !el.classList.contains('exp-cancel')).map(el => [el, el.disabled]);
   locked.forEach(([el]) => { el.disabled = true; });
   const ac = new AbortController(); S.exporting = ac;
@@ -703,12 +714,12 @@ async function runExport(kind) {
   try {
     await J.ensureFonts(project.lyrics + (project.title || '') + (project.artist || '') + HUD_CHARS, J.fontsOfPlan(plan));
     if (kind === 'mp4') {
-      const r = await J.exportMP4({ plan, project, video, sequence, audio: project.includeAudio !== false ? audio : null, quality: project.quality || 'high', onProgress, signal: ac.signal });
+      const r = await J.exportMP4({ plan, project, video, sequence, overlays, audio: project.includeAudio !== false ? audio : null, quality: project.quality || 'high', onProgress, signal: ac.signal });
       txt.textContent = `完成 ${(r.blob.size / 1048576).toFixed(1)}MB・${r.codec}${r.audio ? ' + ' + r.audio.toUpperCase() : ''}・${((performance.now() - t0) / 1000).toFixed(0)}秒`;
       const res = await J.saveFile(baseName() + '.mp4', r.blob);
       if (res === 'declined') txt.textContent += '（保存はキャンセルされました）';
     } else {
-      const blob = await J.exportPNGZip({ plan, project, video, sequence, transparent: kind === 'pnga', onProgress, signal: ac.signal });
+      const blob = await J.exportPNGZip({ plan, project, video, sequence, overlays, transparent: kind === 'pnga', onProgress, signal: ac.signal });
       txt.textContent = `完成 ${(blob.size / 1048576).toFixed(1)}MB`;
       await J.saveFile(baseName() + (kind === 'pnga' ? '_alpha' : '') + '_png.zip', blob);
     }
@@ -886,6 +897,7 @@ function bind() {
       pause(); if (S.videoLoading) S.videoLoading.abort(); S.videoLoading = null;
       if (S.audioLoading) S.audioLoading.abort(); S.audioLoading = null;
       releaseAllMedia(); S.audio = null; S.editPast = []; S.editFuture = []; S.selectedClip = null;
+      if (J.imageUI) J.imageUI.reset();
       $('audioName').textContent = '曲を使う場合は、曲も読み込み直してください。';
       S.project = project; S.t = 0; replan(); syncUI();
     }

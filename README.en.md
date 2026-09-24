@@ -27,13 +27,26 @@ Use **Save** and **Open** for `.jizura.json` projects. **Export for AE** creates
 4. Enter lyrics and edit each line's **Start / End (s)** on the final timeline. LRC timestamps and **Tap to sync** also work; manual timing overrides LRC. An earlier end leaves a gap for an instrumental passage. **Adding, removing, reordering, trimming or changing the speed of footage does not move lyric times automatically.** Arrange the footage before aligning the lyrics. Leave the lyrics empty to edit and export video without text.
 5. Choose the output aspect ratio, then **Fit whole video** or **Fill frame**. Adjust center / lower / upper text placement, scale, horizontal and vertical position, shadow and video dimming.
 6. Select **Video audio**, **Imported audio** or **Mute**. Video audio follows each clip's range, speed, volume, mute and fades. Imported audio replaces it with a soundtrack beginning at the start of the final timeline. If the browser cannot extract video audio, import a separate audio file or select Mute.
-7. Export **MP4** or a **PNG sequence** to composite the edited footage and animated lyrics. Output length is the total duration of the edited clips. **Transparent PNG** exports only the lyric animation for compositing elsewhere. MP4 requires WebCodecs and a supported encoder; Chrome or Edge is recommended.
+7. Export **MP4** or a **PNG sequence** to composite the edited footage and animated lyrics. Output length is the total duration of the edited clips. **Transparent PNG** exports animated lyrics and added images without footage or background for compositing elsewhere. MP4 requires WebCodecs and a supported encoder; Chrome or Edge is recommended.
 
 The footage uses one consecutive track without gaps. Simultaneous video layers and overlapping cross-dissolves are not supported. Combining a clip's fade out with the next clip's fade in produces a transition through black. Long or high-resolution sources can use substantial device memory; try a short section before exporting a long sequence.
 
 MV mode retains the text animation and palette while omitting opaque style backgrounds, HUD, global post-processing and lyric-cut transitions. Automatic title cards and interlude cuts are also disabled. Some existing layouts contain graphic bands or panels; choose a layout that leaves the important parts of your footage visible. Without imported video, the original lyric-video workflow remains available.
 
-**Save and reopen:** Project JSON stores lyrics, timing, MV settings, clip order and edits, and source-file metadata. It does not embed video or audio files. Re-select the same video files when reopening; matching source metadata reconnects them to the existing clips, including split and duplicated clips. Re-select any separate audio file as well. Video editing and compositing are browser-edition features; footage edits are not transferred to the After Effects panels.
+**Save and reopen:** Project JSON stores lyrics, timing, MV settings, clip order and edits, and source-file metadata. It does not embed video, audio or added image files. Re-select the same video files when reopening; matching source metadata reconnects them to the existing clips, including split and duplicated clips. Re-select any separate audio file as well. Video editing and compositing are browser-edition features; footage edits are not transferred to the After Effects panels.
+
+## Add animated image overlays
+
+Import still PNG, JPEG or WebP images and give each image its own timing, placement and motion. Image colors and transparent PNG pixels are preserved. Animated PNG and WebP files are not supported. Image overlays work with footage and with the original lyric-video workflow. Without video, the style background remains, with images and text composited separately.
+
+1. Use **Add / reimport images**. Each imported image becomes a separate layer, and multiple layers can be visible at the same time.
+2. Select a layer and set its **Show from / Show until (s)** on the final edited timeline. Footage edits do not automatically move image timing.
+3. Adjust **transparency, position, scale, rotation and horizontal flip**. Transparency is **0% for fully opaque and 100% for invisible**. Position 50% is the center; scale 100% fits the whole image in the frame. Place an image below or above lyrics and reorder images within that plane.
+4. Choose **Entrance, hold and exit** motions independently. These reuse image-compatible JIZURA text motions, applied to the whole image or to a 4×4 grid of tiles that animate in sequence. Text-specific layouts and effects that depend on glyph shapes are not image effects; this is not support for all of JIZURA's text techniques on images. Click **Apply to image** to commit your settings.
+5. Duplicate layers to reuse an image with different timing, placement or motion, or delete unwanted layers. Image editing has undo and redo.
+6. **MP4 and PNG sequences** composite footage, images and lyrics. When video is present, export ends with the edited footage, even if an image is scheduled to last longer. Without video, duration follows the latest end of the lyrics, audio or images. **Transparent PNG** includes both images and animated lyrics without footage or a background.
+
+**Save and reopen:** Project JSON stores image-layer settings and source metadata, without embedding the image files. Reimport the same images to reconnect the layers. Image compositing and animation are browser-edition features and are not transferred to the After Effects panels.
 
 ## Build and publish
 

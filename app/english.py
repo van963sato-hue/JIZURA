@@ -1,6 +1,48 @@
 """English copy for the browser edition. The Japanese source stays authoritative."""
 
 BODY = {
+    '画像オーバーレイ': 'Image overlays',
+    '画像を追加／再読み込み': 'Add / reimport images',
+    '透過PNGも使えます': 'Transparent PNG supported',
+    'イラストやロゴを重ねて、文字と同じ登場・待機・退場の動きを付けられます。': 'Overlay illustrations or logos and animate their entrance, hold and exit with text motions.',
+    '画像レイヤー（左から奥、手前の順）': 'Image layers (back to front, left to right)',
+    '選択画像の編集': 'Edit selected image',
+    '画像を複製': 'Duplicate image',
+    '同じ重なり位置の画像の中で1つ奥へ移動': 'Move one place backward among images in the same plane',
+    '同じ重なり位置の画像の中で1つ手前へ移動': 'Move one place forward among images in the same plane',
+    '← 奥へ': '← Backward',
+    '手前へ →': 'Forward →',
+    '画像を削除': 'Delete image',
+    '画像編集の履歴': 'Image edit history',
+    '画像編集を元に戻す': 'Undo image edit',
+    '画像編集をやり直す': 'Redo image edit',
+    '↶ 画像を戻す': '↶ Undo image edit',
+    '表示開始（秒）': 'Show from (s)',
+    '現在位置を開始に': 'Start here',
+    '表示終了（秒）': 'Show until (s)',
+    '現在位置を終了に': 'End here',
+    '透明度': 'Transparency',
+    '0%でくっきり、100%で見えなくなります': '0% is opaque; 100% is invisible',
+    '左右の位置（%）': 'Horizontal position (%)',
+    '上下の位置（%）': 'Vertical position (%)',
+    '大きさ（%）': 'Scale (%)',
+    '回転（°）': 'Rotation (°)',
+    '動かし方': 'Animate as',
+    '画像を一枚で動かす': 'Whole image',
+    'タイルに分けて動かす': 'Separate tiles',
+    '文字との重なり': 'Image / lyric order',
+    '文字の後ろ': 'Below lyrics',
+    '文字の前': 'Above lyrics',
+    '登場アニメ': 'Entrance motion',
+    '待機アニメ': 'Hold motion',
+    '退場アニメ': 'Exit motion',
+    '登場にかける秒数': 'Entrance duration (s)',
+    '退場にかける秒数': 'Exit duration (s)',
+    'ランダムな動きのばらつきを変える': 'Change the random variation within the motion',
+    '動きを再抽選': 'Reroll motion',
+    '画像に適用': 'Apply to image',
+    '未適用の変更があります。「画像に適用」で反映します。': 'There are unapplied changes. Use Apply to image to commit them.',
+    '位置50%が中央、大きさ100%が画面に収まる最大サイズ。タイルでは一文字ずつの動きを画像の断片に使います。画像の時刻は編集後の動画全体に対応します。': 'Position 50% is the center; scale 100% fits the whole image in the frame. Tile mode applies per-character motions to image pieces. Image times refer to the final edited timeline.',
     '複数の動画をつなぎ、カットや速度を調整して歌詞の動きを重ねられます。': 'Join multiple videos, edit cuts and speed, and add animated lyrics.',
     '動画を追加／再読み込み': 'Add / reimport videos',
     '動画をすべて外す': 'Remove all videos',
@@ -131,6 +173,8 @@ BODY = {
 }
 
 UI = {
+    '画像の読み込みが終わってから書き出してください。': 'Wait for the images to finish loading before exporting.',
+    '未読み込みの画像があります。元ファイルを追加してから書き出してください。': 'Some images are missing. Reimport the source files before exporting.',
     '未読み込みの動画があります。元ファイルを追加してから書き出してください。': 'Some videos are missing. Reimport the source files before exporting.',
     '未読み込みの動画があります。元ファイルを追加してから再生してください。': 'Some videos are missing. Reimport the source files before playing.',
     '動画なし · 複数の動画を追加できます': 'No video · Add multiple videos',
@@ -221,6 +265,7 @@ UI = {
 }
 
 EXPORT = {
+    '画像「${name}」を再選択してください。元ファイルが読み込まれていません。': 'Reimport “${name}”. The source image file is missing.',
     '動画の編集情報を読み込めません。動画を読み込み直してください。': 'Could not read the video edits. Reimport the videos.',
     '動画「${name}」を再選択してください。元ファイルが読み込まれていません。': 'Reimport “${name}”. The source file is missing.',
     '動画「${source.name || clip.source && clip.source.name || clip.sourceId}」の音声を取得できません。このクリップを消音にするか、音楽ファイルを選んでください。': 'Could not read audio from “${source.name || clip.source && clip.source.name || clip.sourceId}”. Mute this clip or select an imported audio file.',
@@ -253,6 +298,33 @@ VIDEO_EDIT = {
     '編集するクリップが見つかりません。タイムラインから選び直してください。': 'Could not find the clip to edit. Select it again on the timeline.',
     '分割位置をクリップの内側へ動かしてください。分割後の両側に元動画の0.04秒以上が必要です。': 'Move the split point inside the clip. Each side needs at least 0.04 seconds of source footage.',
     "'動画'": "'Video'",
+}
+
+IMAGES = {
+    'キャンセルしました': 'Canceled',
+    "'画像'": "'Image'",
+    '画像ファイルを選んでください。': 'Select an image file.',
+    '画像は100MB以下のPNG・JPEG・WebPを選んでください。': 'Choose a PNG, JPEG or WebP image no larger than 100 MB.',
+    '画像はPNG・JPEG・WebP形式を選んでください。': 'Choose a PNG, JPEG or WebP image.',
+    'アニメーション画像は静止画のPNG・JPEG・WebPに保存して読み込んでください。': 'Save animated images as still PNG, JPEG or WebP files before importing.',
+    '画像の読み込みがタイムアウトしました。': 'Image loading timed out.',
+    '画像を読み込めませんでした。': 'Could not load the image.',
+    '画像は4000万画素以下、各辺16384px以下にしてください。': 'Use an image no larger than 40 megapixels or 16,384 pixels on either side.',
+    '画像を読み込めませんでした。ファイルの形式を確認してください。': 'Could not load the image. Check its file format.',
+}
+
+IMAGE_UI = {
+    "'画像'": "'Image'",
+    '文字の前': 'Above lyrics',
+    '文字の後ろ': 'Below lyrics',
+    '${model().layers.length}レイヤー': '${model().layers.length} layers',
+    '画像を読み込み中…': 'Loading images…',
+    '透過PNGも使えます': 'Transparent PNG supported',
+    '画像を再読み込み: ': 'Reimport images: ',
+    '画像の位置・大きさ・時刻は数値で指定してください。': 'Enter numbers for image position, scale and timing.',
+    '画像の終了は開始より0.01秒以上後にしてください。': 'The image end must be at least 0.01 seconds after its start.',
+    '登場と退場の秒数の合計を、画像の表示時間以内にしてください。': 'The entrance and exit durations together must fit within the image display time.',
+    '位置は−100～200%、大きさは1～400%、回転は−360～360°で指定してください。': 'Use a position between −100% and 200%, scale between 1% and 400%, and rotation between −360° and 360°.',
 }
 
 AE_UI = {
@@ -428,4 +500,8 @@ def localize_js(source, filename):
         return replace_copy(source, MEDIA)
     if filename.endswith('10a_edit.js'):
         return replace_copy(source, VIDEO_EDIT)
+    if filename.endswith('10b_images.js'):
+        return replace_copy(source, IMAGES)
+    if filename.endswith('12a_images_ui.js'):
+        return replace_copy(source, IMAGE_UI)
     return source

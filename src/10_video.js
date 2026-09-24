@@ -156,12 +156,18 @@ J.seekVideo = (element, time, signal) => {
    and full-screen transitions must not move, tint or hide the source footage. */
 J.drawComposite = (renderer, ctx, plan, t, opt = {}) => {
   const media = opt.video;
-  if (!media || !media.element) {
+  const hasVideo = !!(media && media.element);
+  const hasImages = !!(opt.overlays && opt.overlays.data && opt.overlays.data.layers.length && J.drawImageOverlays);
+  if (!hasVideo && !hasImages) {
     renderer.frame(ctx, plan, t, opt);
     return;
   }
-  const settings = J.videoSettings(opt.settings);
+  const settings = hasVideo ? J.videoSettings(opt.settings) : { textScale: 1, x: 0.5, y: 0.5, dim: 0, shadow: false };
   const cw = ctx.canvas.width, ch = ctx.canvas.height;
+  const scale = opt.scale || cw / plan.W;
+  const drawImages = plane => {
+    if (hasImages) J.drawImageOverlays(renderer, ctx, plan, t, { overlays: opt.overlays, plane, scale, fast: !!opt.fast });
+  };
   let layer = lyricLayers.get(renderer);
   if (!layer) { layer = document.createElement('canvas'); lyricLayers.set(renderer, layer); }
   if (layer.width !== cw) layer.width = cw;
@@ -170,7 +176,7 @@ J.drawComposite = (renderer, ctx, plan, t, opt = {}) => {
   // keyBg is a separate export workflow; MV overlays retain the chosen colours.
   const lyricPlan = plan.keyBg ? Object.assign({}, plan, { keyBg: null }) : plan;
   renderer.frame(lx, lyricPlan, t, {
-    scale: opt.scale || cw / plan.W, fast: !!opt.fast,
+    scale, fast: !!opt.fast,
     transparent: true, noHud: true, noTrans: true, noPost: true, preciseCuts: true,
   });
   const size = clamp(finite(settings.textScale, 1), 0.2, 1);
@@ -185,9 +191,9 @@ J.drawComposite = (renderer, ctx, plan, t, opt = {}) => {
     ctx.clearRect(0, 0, cw, ch);
     if (!opt.transparent) {
       ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cw, ch);
-      const video = media.element;
-      const vw = video.videoWidth || media.width, vh = video.videoHeight || media.height;
-      if (video.readyState >= 2 && vw > 0 && vh > 0) {
+      const video = hasVideo && media.element;
+      const vw = video && (video.videoWidth || media.width), vh = video && (video.videoHeight || media.height);
+      if (video && video.readyState >= 2 && vw > 0 && vh > 0) {
         const ratio = (settings.fit === 'cover' ? Math.max : Math.min)(cw / vw, ch / vh);
         const dw = vw * ratio, dh = vh * ratio;
         // Clip transforms affect only footage. Restore before dimming and text
@@ -199,14 +205,19 @@ J.drawComposite = (renderer, ctx, plan, t, opt = {}) => {
           ctx.drawImage(video, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
         } finally { ctx.restore(); }
       }
+      if (!hasVideo) renderer.frame(ctx, plan, t, { scale, fast: !!opt.fast, backgroundOnly: true });
       if (dim > 0) { ctx.fillStyle = `rgba(0,0,0,${dim})`; ctx.fillRect(0, 0, cw, ch); }
     }
+    drawImages('belowText');
+    ctx.save();
     if (settings.shadow !== false) {
       ctx.shadowColor = 'rgba(0,0,0,0.9)';
       ctx.shadowBlur = Math.max(2, ch / 1080 * 10);
       ctx.shadowOffsetY = Math.max(1, ch / 1080 * 2);
     }
     ctx.drawImage(layer, cw * x - cw * size / 2, ch * y - ch * size / 2, cw * size, ch * size);
+    ctx.restore();
+    drawImages('aboveText');
   } finally { ctx.restore(); }
 };
 })();

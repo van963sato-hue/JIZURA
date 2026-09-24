@@ -149,6 +149,67 @@
         </div>
         <p class="hint clip-hint">歌詞の時刻は、編集後の動画全体のタイムラインに対応します。カットや速度変更後は歌詞のタイミングも確認してください。速度を変えると元動画の音声の高さも変わります。</p>
       </section>
+      <section id="imageEditor" class="image-editor" aria-labelledby="imageEditorTitle">
+        <div class="sec-h image-editor-heading">
+          <h2 id="imageEditorTitle">画像オーバーレイ</h2>
+          <span id="imageSummary" class="image-summary mono" role="status" aria-live="polite"></span>
+        </div>
+        <div class="row image-import-row">
+          <label class="file image-load">画像を追加／再読み込み<input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" multiple></label>
+          <span id="imageLoadStatus" class="muted" role="status" aria-live="polite">透過PNGも使えます</span>
+        </div>
+        <p id="imageEmpty" class="hint">イラストやロゴを重ねて、文字と同じ登場・待機・退場の動きを付けられます。</p>
+        <div id="imageLayerList" class="image-layer-list" role="group" aria-label="画像レイヤー（左から奥、手前の順）"></div>
+        <p id="imageMissing" class="mv-warning" role="status" hidden></p>
+        <div id="imageToolbar" class="image-toolbar" hidden>
+          <div class="image-actions" role="group" aria-label="選択画像の編集">
+            <button id="imageDuplicate" type="button">画像を複製</button>
+            <button id="imageBack" type="button" title="同じ重なり位置の画像の中で1つ奥へ移動">← 奥へ</button>
+            <button id="imageFront" type="button" title="同じ重なり位置の画像の中で1つ手前へ移動">手前へ →</button>
+            <button id="imageDelete" type="button" class="image-delete">画像を削除</button>
+          </div>
+          <div class="image-history" role="group" aria-label="画像編集の履歴">
+            <button id="imageUndo" type="button" class="ghost" title="画像編集を元に戻す">↶ 画像を戻す</button>
+            <button id="imageRedo" type="button" class="ghost" title="画像編集をやり直す">↷ やり直す</button>
+          </div>
+        </div>
+        <div id="imageControls" class="image-settings" hidden>
+          <p id="imageSelection" class="image-selection" role="status" aria-live="polite"></p>
+          <div class="image-timing">
+            <label class="field" for="imageStart">表示開始（秒）<input id="imageStart" type="number" min="0" step="0.01" inputmode="decimal"></label>
+            <button id="imageSetStart" type="button" class="ghost">現在位置を開始に</button>
+            <label class="field" for="imageEnd">表示終了（秒）<input id="imageEnd" type="number" min="0" step="0.01" inputmode="decimal"></label>
+            <button id="imageSetEnd" type="button" class="ghost">現在位置を終了に</button>
+          </div>
+          <label class="image-opacity" for="imageTransparency"><span>透明度</span><output id="imageTransparencyValue" for="imageTransparency">0%</output><input id="imageTransparency" type="range" min="0" max="100" step="1" value="0"><small>0%でくっきり、100%で見えなくなります</small></label>
+          <div class="image-transform-grid">
+            <label class="field" for="imageX">左右の位置（%）<input id="imageX" type="number" min="-100" max="200" step="1" inputmode="decimal"></label>
+            <label class="field" for="imageY">上下の位置（%）<input id="imageY" type="number" min="-100" max="200" step="1" inputmode="decimal"></label>
+            <label class="field" for="imageScale">大きさ（%）<input id="imageScale" type="number" min="1" max="400" step="1" inputmode="decimal"></label>
+            <label class="field" for="imageRotation">回転（°）<input id="imageRotation" type="number" min="-360" max="360" step="1" inputmode="decimal"></label>
+          </div>
+          <div class="image-motion-grid">
+            <label class="field" for="imageMode">動かし方<select id="imageMode"><option value="whole">画像を一枚で動かす</option><option value="tiles">タイルに分けて動かす</option></select></label>
+            <label class="field" for="imagePlane">文字との重なり<select id="imagePlane"><option value="belowText">文字の後ろ</option><option value="aboveText">文字の前</option></select></label>
+          </div>
+          <div class="image-animation-grid">
+            <label class="field" for="imageEnter">登場アニメ<select id="imageEnter"></select></label>
+            <label class="field" for="imageHold">待機アニメ<select id="imageHold"></select></label>
+            <label class="field" for="imageExit">退場アニメ<select id="imageExit"></select></label>
+          </div>
+          <div class="image-motion-grid">
+            <label class="field" for="imageInDur">登場にかける秒数<input id="imageInDur" type="number" min="0" step="0.05" inputmode="decimal"></label>
+            <label class="field" for="imageOutDur">退場にかける秒数<input id="imageOutDur" type="number" min="0" step="0.05" inputmode="decimal"></label>
+          </div>
+          <div class="image-apply-row">
+            <label class="image-flip"><input id="imageFlip" type="checkbox">左右反転</label>
+            <button id="imageReroll" type="button" class="ghost" title="ランダムな動きのばらつきを変える">動きを再抽選</button>
+            <button id="imageApply" type="button" class="primary">画像に適用</button>
+          </div>
+          <p id="imageDirty" class="image-dirty" role="status" hidden>未適用の変更があります。「画像に適用」で反映します。</p>
+          <p class="hint image-hint">位置50%が中央、大きさ100%が画面に収まる最大サイズ。タイルでは一文字ずつの動きを画像の断片に使います。画像の時刻は編集後の動画全体に対応します。</p>
+        </div>
+      </section>
       <canvas id="timeline" aria-label="歌詞タイムライン（クリックで移動）"></canvas>
       <div class="cutinfo" id="cutInfo"></div>
     </section>
