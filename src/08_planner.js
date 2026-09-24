@@ -22,7 +22,8 @@ J.defaultProject = () => ({
   aspect: '16:9', res: 1080, fps: 24,
   fx: { motion: 0.7, glitch: 0.55, chroma: 0.7, decor: 0.5, density: 0.55, texture: 0.6, flash: true, onTwos: true, koma: 12, hud: 'auto', bgSwitch: 0.35 },
   enabled: Object.fromEntries(J.GROUP_KEYS.map(g => [g, Object.fromEntries(J.order(g).map(k => [k, true]))])),
-  timing: { bpm: 0, offset: 0.4, snap: true, tail: 0.9, lineTimes: {}, lineScale: 1 },
+  timing: { bpm: 0, offset: 0.4, snap: true, tail: 0.9, lineTimes: {}, lineEnds: {}, lineScale: 1 },
+  video: { fit: 'contain', dim: 0.15, textScale: 0.72, x: 0.5, y: 0.5, shadow: true, audioSource: 'video' },
   overrides: {},
   colors: { enabled: false },
   fonts: {},
@@ -145,8 +146,8 @@ J.computeTiming = (project, parsed, audio) => {
   lines.forEach((l, i) => {
     const man = T.lineTimes && T.lineTimes[i] != null ? +T.lineTimes[i] : null;
     let s;
-    if (allLrc) s = l.lrc;
-    else if (man != null && isFinite(man)) s = man;
+    if (man != null && isFinite(man)) s = man;
+    else if (allLrc || l.lrc != null) s = l.lrc;
     else {
       if (i > 0) {
         const n = [...lines[i - 1].text].length;
@@ -155,9 +156,11 @@ J.computeTiming = (project, parsed, audio) => {
         s = starts[i - 1] + d + (l.gapBefore ? (beat ? beat * 2 : 0.8) : 0);
       } else s = t;
     }
-    starts.push(s);
+    starts.push(Math.max(0, Number.isFinite(s) ? s : 0, i ? starts[i - 1] + 0.05 : 0));
   });
   const ends = starts.map((s, i) => {
+    const end = T.lineEnds && T.lineEnds[i] != null ? +T.lineEnds[i] : NaN;
+    if (Number.isFinite(end)) return Math.min(Math.max(s + 0.05, end), i < starts.length - 1 ? starts[i + 1] : Infinity);
     if (i < starts.length - 1) return Math.max(s + 0.35, starts[i + 1]);
     const n = [...lines[i].text].length;
     let d = J.clamp(0.8 + n * 0.17, 1.5, 5.2) * (T.lineScale || 1);
@@ -220,7 +223,9 @@ J.plan = (project, audio) => {
     const lineSeed = ov.lock && ov.lockedSeed != null ? ov.lockedSeed : J.h(project.seed, li + 1, ov.seed | 0);
     const rng = J.rng(lineSeed);
     const n = [...ln.text.replace(/\s+/g, '')].length;
-    const visEnd = Math.min(e, s + Math.max(3.6, n * 0.5 + 1.2));
+    const endValue = project.timing && project.timing.lineEnds && project.timing.lineEnds[li];
+    const explicitEnd = endValue != null && Number.isFinite(+endValue);
+    const visEnd = explicitEnd ? e : Math.min(e, s + Math.max(3.6, n * 0.5 + 1.2));
     const D = visEnd - s;
     plan.lines.push({ index: li, text: ln.text, start: s, end: e, visEnd, note: ln.note, impact: ln.impact, emph: ln.emph, chunks: null, seed: lineSeed });
     const chunks = ln.manual || J.chunkText(ln.text);
@@ -487,6 +492,11 @@ J.designSize = (aspect) => {
   if (aspect === '21:9') return [2520, 1080];
   if (aspect === '4:3') return [1440, 1080];
   if (aspect === '3:4') return [1080, 1440];
+  const ratio = String(aspect).match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
+  if (ratio) {
+    const ar = +ratio[1] / +ratio[2];
+    if (Number.isFinite(ar) && ar >= 0.1 && ar <= 10) return ar >= 1 ? [Math.round(1080 * ar), 1080] : [1080, Math.round(1080 / ar)];
+  }
   return [1920, 1080];
 };
 J.outputSize = (project) => {

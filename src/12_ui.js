@@ -12,7 +12,7 @@ const ICON = {
   lock: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/></svg>',
 };
 
-const S = { project: null, plan: null, audio: null, renderer: new J.Renderer(), playing: false, t: 0, t0: 0, loop: true, need: true, exporting: null, tap: null, slow: false, lineEls: [], curLine: -2 };
+const S = { project: null, plan: null, audio: null, audioLoading: null, video: null, videoLoading: null, videoSeeking: false, seekId: 0, renderer: new J.Renderer(), playing: false, t: 0, t0: 0, loop: true, need: true, exporting: null, tap: null, slow: false, lineEls: [], curLine: -2 };
 
 /* WebAudio player (works inside sandboxed pages where blob media may be blocked) */
 const AP = {
@@ -22,7 +22,8 @@ const AP = {
     if (this.ctx.state === 'suspended') this.ctx.resume();
     this.stop();
     const s = this.ctx.createBufferSource(); s.buffer = buffer; s.connect(this.ctx.destination);
-    const off = Math.max(0, Math.min(offset, buffer.duration - 0.01));
+    if (offset >= buffer.duration) return;
+    const off = Math.max(0, offset);
     s.start(0, off); this.src = s; this.startAt = this.ctx.currentTime - off;
   },
   stop() { if (this.src) { try { this.src.stop(); } catch (e) {} try { this.src.disconnect(); } catch (e) {} this.src = null; } },
@@ -35,6 +36,10 @@ function mergeProject(p) {
   const o = Object.assign(d, p || {});
   o.fx = Object.assign(J.defaultProject().fx, (p && p.fx) || {});
   o.timing = Object.assign(J.defaultProject().timing, (p && p.timing) || {});
+  o.timing.lineTimes = o.timing.lineTimes || {};
+  o.timing.lineEnds = o.timing.lineEnds || {};
+  o.video = J.videoSettings(p && p.video);
+  if (p && p.video && p.video.source && typeof p.video.source.name === 'string') o.video.source = p.video.source;
   const en = J.defaultProject().enabled;
   for (const g of Object.keys(en)) en[g] = Object.assign(en[g], ((p && p.enabled) || {})[g] || {});
   o.enabled = en;
@@ -57,9 +62,11 @@ window.addEventListener('pagehide', () => { if (S.project) flushSave(); });
 /* ---------------- planning ---------------- */
 function audioLike() {
   const T = S.project.timing;
-  if (S.audio) {
-    const a = Object.assign({}, S.audio);
-    if (T.bpm > 0) a.beats = J.beatGrid(T.bpm, T.beatOffset || 0, S.audio.duration);
+  const source = selectedAudio();
+  if (source || S.video) {
+    const a = Object.assign({}, source || {});
+    if (S.video) a.duration = S.video.duration;
+    if (T.bpm > 0) a.beats = J.beatGrid(T.bpm, T.beatOffset || 0, a.duration);
     return a;
   }
   if (T.bpm > 0) return { beats: J.beatGrid(T.bpm, T.beatOffset || 0, 600) };
@@ -73,11 +80,26 @@ function langNote() {
   langNote.last = J.lang;
 }
 function replan() {
-  S.plan = J.plan(S.project, audioLike());
+  let planningProject = S.project;
+  if (S.video) {
+    // Full-frame transitions replace entrance/exit animations at planning time.
+    // Disable them before planning, preserving the saved non-MV choices.
+    planningProject = Object.assign({}, S.project, {
+      enabled: Object.assign({}, S.project.enabled, { trans: Object.fromEntries(J.order('trans').map(k => [k, false])) }),
+      overrides: Object.fromEntries(Object.entries(S.project.overrides).map(([k, v]) => [k, Object.assign({}, v, { trans: null })])),
+    });
+  }
+  S.plan = J.plan(planningProject, audioLike());
+  if (S.video) {
+    S.plan.duration = S.video.duration;
+    S.plan.cuts = S.plan.cuts.filter(c => c.line >= 0 && c.layout !== 'interlude' && c.start < S.video.duration);
+    S.plan.cuts.forEach((c, i) => { c.index = i; });
+  }
   langNote();
   if (S.t > S.plan.duration) S.t = 0;
   renderLines(); sizeViewport(); drawTimeline(); updateTimeUI();
   S.need = true; autosave(); ensureFonts(); drawSwatch(); showNow();
+  syncVideoUI();
   clearTimeout(warmTimer); warmTimer = setTimeout(warm, 450);
 }
 /* pre-decompose glyphs used by piece animations while the editor is idle, so playback does not hitch */
@@ -140,7 +162,7 @@ function sizeViewport() {
 function draw() {
   const c = $('view'), ctx = c.getContext('2d');
   const t0 = performance.now();
-  S.renderer.frame(ctx, S.plan, S.t, { scale: c.width / S.plan.W, fast: S.playing && S.slow });
+  J.drawComposite(S.renderer, ctx, S.plan, S.t, { scale: c.width / S.plan.W, fast: S.playing && S.slow, video: S.video, settings: S.project.video });
   const dt = performance.now() - t0;
   S.slow = S.playing ? (dt > 30 ? true : dt < 14 ? false : S.slow) : false;
   updateTimeUI(); drawTimeline(); updateCutInfo();
@@ -148,9 +170,12 @@ function draw() {
 function tick(now) {
   requestAnimationFrame(tick);
   if (S.exporting) return;
-  if (S.playing) {
+  if (S.playing && !S.videoSeeking) {
     // rAF timestamps can precede the moment play()/seek() stamped t0 → clamp so t never goes negative
-    let t = Math.max(0, S.audio ? AP.time() : (now - S.t0) / 1000);
+    let t = Math.max(0, S.video ? S.video.element.currentTime : S.audio ? AP.time() : (now - S.t0) / 1000);
+    if (S.video && S.project.video.audioSource === 'audio' && S.audio && !S.video.element.seeking && !S.video.element.paused && S.video.element.readyState >= 3 && t < S.audio.duration) {
+      if (!AP.src || Math.abs(AP.time() - t) > 0.18) AP.play(S.audio.buffer, t);
+    }
     if (t >= S.plan.duration - 1e-3) {
       if (S.loop && !S.tap) { seek(0); t = 0; }
       else { pause(); t = S.plan.duration - 1e-3; if (S.tap) stopTap(); }
@@ -165,17 +190,43 @@ function updateTimeUI() {
   if (!S.scrubbing) $('scrub').value = String(Math.round(S.t / Math.max(0.001, S.plan.duration) * 10000));
 }
 function play() {
-  if (S.audio) AP.play(S.audio.buffer, S.t);
+  if (S.exporting || S.videoLoading || S.audioLoading) return;
+  if (S.video) {
+    const video = S.video;
+    video.element.muted = S.project.video.audioSource !== 'video';
+    if (video.element.ended || S.t >= S.plan.duration - 0.01) seek(0);
+    if (!S.videoSeeking) video.element.play().catch(error => {
+      if (S.video !== video || !S.playing || error.name === 'AbortError') return;
+      pause(); toast('動画を再生できませんでした。再生ボタンをもう一度押してください。');
+    });
+  } else if (S.audio) AP.play(S.audio.buffer, S.t);
   else S.t0 = performance.now() - S.t * 1000;
   S.playing = true; $('btnPlay').textContent = '❚❚'; $('btnPlay').setAttribute('aria-label', '一時停止');
 }
 function pause() {
   S.playing = false; AP.stop();
+  if (S.video) S.video.element.pause();
   $('btnPlay').textContent = '▶'; $('btnPlay').setAttribute('aria-label', '再生'); S.need = true;
 }
 function seek(t) {
+  if (S.exporting) return;
   S.t = J.clamp(t, 0, Math.max(0, S.plan.duration - 1e-3));
-  if (S.audio) { if (S.playing) AP.play(S.audio.buffer, S.t); }
+  if (S.video) {
+    AP.stop();
+    const video = S.video;
+    const seekId = ++S.seekId;
+    S.videoSeeking = true;
+    video.element.pause();
+    J.seekVideo(video.element, S.t).then(() => {
+      if (video !== S.video || seekId !== S.seekId) return;
+      S.videoSeeking = false; S.need = true;
+      if (S.playing) play();
+    }).catch(error => {
+      if (video !== S.video || seekId !== S.seekId) return;
+      S.videoSeeking = false;
+      if (error.name !== 'AbortError') { pause(); toast(error.message); }
+    });
+  } else if (S.audio) { if (S.playing) AP.play(S.audio.buffer, S.t); }
   else S.t0 = performance.now() - S.t * 1000;
   S.need = true;
 }
@@ -188,8 +239,9 @@ function drawTimeline() {
   if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
   const x = c.getContext('2d'), D = Math.max(0.001, S.plan.duration), X = t => t / D * w;
   x.fillStyle = '#131316'; x.fillRect(0, 0, w, h);
-  if (S.audio && S.audio.peaks) {
-    const pk = S.audio.peaks, n = pk.length, sd = S.audio.duration;
+  const timelineAudio = selectedAudio();
+  if (timelineAudio && timelineAudio.peaks) {
+    const pk = timelineAudio.peaks, n = pk.length, sd = timelineAudio.duration;
     x.fillStyle = '#2b2b33';
     for (let i = 0; i < w; i += 2) { const t = i / w * D; if (t > sd) break; const v = pk[Math.min(n - 1, Math.floor(t / sd * n))]; const hh = v * h * 0.8; x.fillRect(i, h * 0.6 - hh / 2, 1.5, hh); }
   }
@@ -258,6 +310,7 @@ function renderLines() {
     li.innerHTML = `<span class="no">${String(i + 1).padStart(2, '0')}</span>
       <input class="time mono" type="number" step="0.01" min="0" value="${ln.start.toFixed(2)}" title="開始（秒）${manual ? '・手動' : '・自動'}" aria-label="${i + 1}行目の開始秒" style="${manual ? 'border-color:var(--cyan)' : ''}">
       <span class="txt" title="${escapeHtml(ln.text)}">${escapeHtml(ln.text)}</span>
+      <div class="line-end-row"><label>終了 <input class="end-time mono" type="number" step="0.01" min="${(ln.start + 0.05).toFixed(2)}" value="${ln.end.toFixed(2)}" aria-label="${i + 1}行目の終了秒"></label><button class="ghost mark-start" title="今の再生位置を開始にする">開始を現在位置へ</button><button class="ghost reset-end" title="終了を自動に戻す">自動</button></div>
       <div class="meta"><span class="cuts"></span>
       <span class="tools">
         <select aria-label="レイアウト指定">${layoutOpts}</select>
@@ -270,6 +323,19 @@ function renderLines() {
       if (!S.project.timing.lineTimes) S.project.timing.lineTimes = {};
       if (isFinite(v)) S.project.timing.lineTimes[i] = Math.max(0, v); else delete S.project.timing.lineTimes[i];
       replan();
+    });
+    li.querySelector('.end-time').addEventListener('change', e => {
+      if (!S.project.timing.lineEnds) S.project.timing.lineEnds = {};
+      const v = parseFloat(e.target.value);
+      if (Number.isFinite(v)) S.project.timing.lineEnds[i] = Math.max(ln.start + 0.05, v);
+      else delete S.project.timing.lineEnds[i];
+      replan();
+    });
+    li.querySelector('.mark-start').addEventListener('click', () => {
+      S.project.timing.lineTimes[i] = +S.t.toFixed(3); replan();
+    });
+    li.querySelector('.reset-end').addEventListener('click', () => {
+      delete S.project.timing.lineEnds[i]; replan();
     });
     li.querySelector('.txt').addEventListener('click', () => seek(ln.start + 0.001));
     li.querySelector('select').addEventListener('change', e => { setOv(i, { layout: e.target.value || undefined }); replan(); });
@@ -553,6 +619,13 @@ function renderTech() {
 
 /* ---------------- output tab ---------------- */
 function syncOut() {
+  ['outAspect', 'eAspect'].forEach(id => {
+    const select = $(id);
+    if (![...select.options].some(o => o.value === S.project.aspect)) {
+      const option = document.createElement('option'); option.value = S.project.aspect;
+      option.textContent = S.project.aspect + '（元動画）'; select.appendChild(option);
+    }
+  });
   $('outAspect').value = S.project.aspect; $('outRes').value = String(S.project.res); $('outFps').value = String(S.project.fps);
   $('eAspect').value = S.project.aspect; $('eRes').value = String(S.project.res); $('eFps').value = String(S.project.fps);
   $('outQuality').value = S.project.quality || 'high'; $('outAudio').checked = S.project.includeAudio !== false;
@@ -561,22 +634,34 @@ function syncOut() {
   const kb = $('keyBadge');
   kb.hidden = k === 'off';
   if (k !== 'off') kb.innerHTML = `<i style="background:${J.KEY_BG[k]}"></i>${k === 'green' ? 'グリーンバック' : 'ブラックバック'}`;
+  if (S.video) { kb.hidden = true; }
+  ['outKey', 'eKey'].forEach(id => { $(id).disabled = !!S.video; });
 }
 async function codecNote() {
   const [w, h] = J.outputSize(S.project);
   const vc = await J.pickVideoCodec(w, h, S.project.fps, 12e6);
   $('codecNote').textContent = vc ? `このブラウザでは ${vc.label} で書き出します（${w}×${h} / ${S.project.fps}fps）。書き出し中はタブを開いたままにしてください。` : 'このブラウザは動画エンコード（WebCodecs）に対応していません。Chrome / Edge の最新版で開くか、連番PNGを使ってください。';
-  $('btnMP4').disabled = !vc; $('eMP4').disabled = !vc;
+  $('btnMP4').disabled = !vc || !!S.exporting; $('eMP4').disabled = !vc || !!S.exporting;
   if (!vc) $('eMP4').title = 'このブラウザは MP4 書き出しに対応していません（Chrome / Edge 推奨）';
 }
 const EXP_BTNS = ['btnMP4', 'btnPNG', 'btnPNGA', 'eMP4'];
 function baseName() {
-  const k = J.keyMode(S.project);
+  const k = S.video ? null : J.keyMode(S.project);
   return ((S.project.title || 'jizura').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 60) || 'jizura') + (k ? (k === 'green' ? '_greenback' : '_blackback') : '');
 }
 async function runExport(kind) {
   if (S.exporting) return;
+  if (S.videoLoading || S.audioLoading) { toast('動画・音声の読み込みが終わってから書き出してください。'); return; }
+  if (S.project.video.source && !S.video) { toast('保存したMV動画をもう一度読み込んでください。'); return; }
+  if (kind === 'mp4' && S.video && S.project.includeAudio !== false && S.project.video.audioSource !== 'mute' && !selectedAudio()) {
+    toast(S.project.video.audioSource === 'video' ? '元動画の音声を読み取れません。「別に読み込んだ曲」を使うか「音声なし」を選んでください。' : '使用する曲を読み込んでください。');
+    return;
+  }
+  clearTimeout(replanTimer); replan();
   pause();
+  const project = JSON.parse(JSON.stringify(S.project)), plan = S.plan, video = S.video, audio = selectedAudio();
+  const locked = [...document.querySelectorAll('button,input,select,textarea')].filter(el => !el.classList.contains('exp-cancel')).map(el => [el, el.disabled]);
+  locked.forEach(([el]) => { el.disabled = true; });
   const ac = new AbortController(); S.exporting = ac;
   const boxes = [...document.querySelectorAll('.exp-box')];
   const setText = m => boxes.forEach(b => { b.querySelector('.exp-text').textContent = m; });
@@ -587,14 +672,14 @@ async function runExport(kind) {
   const onProgress = (p, m) => { boxes.forEach(b => { b.querySelector('.exp-bar').style.width = (p * 100).toFixed(1) + '%'; }); setText(m); };
   const t0 = performance.now();
   try {
-    await J.ensureFonts(S.project.lyrics + (S.project.title || '') + (S.project.artist || '') + HUD_CHARS, J.fontsOfPlan(S.plan));
+    await J.ensureFonts(project.lyrics + (project.title || '') + (project.artist || '') + HUD_CHARS, J.fontsOfPlan(plan));
     if (kind === 'mp4') {
-      const r = await J.exportMP4({ plan: S.plan, project: S.project, audio: S.project.includeAudio !== false ? S.audio : null, quality: S.project.quality || 'high', onProgress, signal: ac.signal });
+      const r = await J.exportMP4({ plan, project, video, audio: project.includeAudio !== false ? audio : null, quality: project.quality || 'high', onProgress, signal: ac.signal });
       txt.textContent = `完成 ${(r.blob.size / 1048576).toFixed(1)}MB・${r.codec}${r.audio ? ' + ' + r.audio.toUpperCase() : ''}・${((performance.now() - t0) / 1000).toFixed(0)}秒`;
       const res = await J.saveFile(baseName() + '.mp4', r.blob);
       if (res === 'declined') txt.textContent += '（保存はキャンセルされました）';
     } else {
-      const blob = await J.exportPNGZip({ plan: S.plan, project: S.project, transparent: kind === 'pnga', onProgress, signal: ac.signal });
+      const blob = await J.exportPNGZip({ plan, project, video, transparent: kind === 'pnga', onProgress, signal: ac.signal });
       txt.textContent = `完成 ${(blob.size / 1048576).toFixed(1)}MB`;
       await J.saveFile(baseName() + (kind === 'pnga' ? '_alpha' : '') + '_png.zip', blob);
     }
@@ -603,7 +688,7 @@ async function runExport(kind) {
     console.error(e);
   } finally {
     S.exporting = null; S.need = true;
-    EXP_BTNS.forEach(id => { $(id).disabled = false; });
+    locked.forEach(([el, disabled]) => { el.disabled = disabled; });
     codecNote();
   }
 }
@@ -640,6 +725,7 @@ function syncUI() {
   document.querySelectorAll('.extra-toggle').forEach(el => { el.checked = S.project.extra === true; });
   $('lyricLang').value = J.LANG_LABEL[S.project.lang] ? S.project.lang : 'auto'; langNote();
   renderFontRoles(); renderColors(); renderFx(); renderTech(); syncOut(); drawStyleGrid();
+  syncVideoUI();
 }
 
 /* ---------------- wiring ---------------- */
@@ -658,8 +744,20 @@ function bind() {
   $('offset').addEventListener('change', e => { S.project.timing.offset = Math.max(0, parseFloat(e.target.value) || 0); replan(); });
   $('lineScale').addEventListener('change', e => { S.project.timing.lineScale = J.clamp(parseFloat(e.target.value) || 1, 0.3, 4); replan(); });
   $('snap').addEventListener('change', e => { S.project.timing.snap = e.target.checked; replan(); });
-  $('btnResetTimes').addEventListener('click', () => { S.project.timing.lineTimes = {}; replan(); });
-  $('audioFile').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (f) loadAudioFile(f); });
+  $('btnResetTimes').addEventListener('click', () => { S.project.timing.lineTimes = {}; S.project.timing.lineEnds = {}; replan(); });
+  $('videoFile').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) loadVideoFile(f); });
+  $('btnRemoveVideo').addEventListener('click', removeVideo);
+  $('videoFit').addEventListener('change', e => { S.project.video.fit = e.target.value; S.need = true; autosave(); });
+  $('videoAudioSource').addEventListener('change', e => { pause(); S.project.video.audioSource = e.target.value; syncUI(); replan(); });
+  [['videoTextScale', 'textScale'], ['videoX', 'x'], ['videoY', 'y'], ['videoDim', 'dim']].forEach(([id, key]) => {
+    $(id).addEventListener('input', e => { S.project.video[key] = +e.target.value / 100; syncVideoUI(); S.need = true; autosave(); });
+  });
+  $('videoShadow').addEventListener('change', e => { S.project.video.shadow = e.target.checked; S.need = true; autosave(); });
+  document.querySelectorAll('[data-mv-preset]').forEach(el => el.addEventListener('click', () => {
+    const presets = { center: { textScale: 0.72, x: 0.5, y: 0.5 }, lower: { textScale: 0.42, x: 0.5, y: 0.76 }, upper: { textScale: 0.42, x: 0.5, y: 0.24 } };
+    Object.assign(S.project.video, presets[el.dataset.mvPreset]); syncVideoUI(); S.need = true; autosave();
+  }));
+  $('audioFile').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) loadAudioFile(f); });
   $('btnTap').addEventListener('click', () => (S.tap ? stopTap() : startTap()));
   $('tapBtn').addEventListener('click', tapNow);
   $('tapStop').addEventListener('click', () => { pause(); stopTap(); });
@@ -753,11 +851,19 @@ function bind() {
   $('btnAE').addEventListener('click', () => J.saveFile(baseName() + '_ae.json', JSON.stringify(J.planForAE(S.plan, S.project), null, 1)));
   $('fileProject').addEventListener('change', async e => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
-    try { S.project = mergeProject(JSON.parse(await f.text())); syncUI(); replan(); }
+    try {
+      const project = mergeProject(JSON.parse(await f.text()));
+      pause(); if (S.videoLoading) S.videoLoading.abort(); S.videoLoading = null;
+      if (S.audioLoading) S.audioLoading.abort(); S.audioLoading = null;
+      J.releaseVideo(S.video); S.video = null; S.videoSeeking = false; S.audio = null;
+      $('audioName').textContent = '曲を使う場合は、曲も読み込み直してください。';
+      S.project = project; S.t = 0; syncUI(); replan();
+    }
     catch (err) { showMsg('プロジェクトを読み込めませんでした'); setTimeout(() => showMsg(null), 2500); }
     e.target.value = '';
   });
   document.addEventListener('keydown', e => {
+    if (S.exporting) return;
     const tag = (e.target && e.target.tagName) || '';
     const typing = /INPUT|TEXTAREA|SELECT/.test(tag) && e.target.type !== 'range' && e.target.type !== 'checkbox';
     if (S.tap && (e.code === 'Space' || e.code === 'Enter') && !typing) { e.preventDefault(); tapNow(); return; }
@@ -772,17 +878,102 @@ function bind() {
   if (window.ResizeObserver) new ResizeObserver(() => { sizeViewport(); drawTimeline(); }).observe($('viewport'));
 }
 
+/* ---------------- local MV ---------------- */
+function selectedAudio() {
+  if (!S.video) return S.audio;
+  if (S.project.video.audioSource === 'video') return S.video.audio || null;
+  return S.project.video.audioSource === 'audio' ? S.audio : null;
+}
+function syncVideoUI() {
+  const settings = S.project.video;
+  const source = settings.source;
+  $('videoControls').hidden = !S.video && !source;
+  $('btnRemoveVideo').hidden = !S.video && !source && !S.videoLoading;
+  if (!S.videoLoading) $('videoName').textContent = S.video
+    ? `${S.video.name} · ${S.video.width}×${S.video.height} · ${J.fmtTime(S.video.duration)}`
+    : source ? `再読み込みが必要: ${source.name}` : '動画なし · MP4 / WebM など';
+  $('videoFit').value = settings.fit;
+  $('videoAudioSource').value = settings.audioSource;
+  [['videoTextScale', 'textScale'], ['videoX', 'x'], ['videoY', 'y'], ['videoDim', 'dim']].forEach(([id, key]) => {
+    $(id).value = String(Math.round(settings[key] * 100));
+    $(id + 'Value').textContent = Math.round(settings[key] * 100) + '%';
+  });
+  $('videoShadow').checked = settings.shadow;
+  const warnings = [];
+  if (source && !S.video) warnings.push('保存した設定を使うには、同じMV動画を読み込み直してください。');
+  if (S.video && settings.audioSource === 'video' && !S.video.audio) warnings.push('元動画の音声を読み取れませんでした。書き出しには別の曲を読み込むか「音声なし」を選んでください。');
+  if (S.video && settings.audioSource === 'audio' && !S.audio) warnings.push('「曲を読み込む」で使用する音声を選んでください。');
+  if (S.video && S.plan && S.plan.lines.some(l => l.start >= S.video.duration)) warnings.push('動画の終了より後に始まる歌詞があります。開始時刻を調整してください。');
+  $('videoWarning').hidden = !warnings.length;
+  $('videoWarning').textContent = warnings.join(' ');
+}
+function removeVideo() {
+  if (S.exporting) return;
+  pause();
+  if (S.videoLoading) S.videoLoading.abort();
+  S.videoLoading = null;
+  J.releaseVideo(S.video); S.video = null; S.videoSeeking = false;
+  delete S.project.video.source;
+  syncUI(); replan();
+}
+async function loadVideoFile(file) {
+  if (S.exporting) return false;
+  pause();
+  if (S.videoLoading) S.videoLoading.abort();
+  const task = new AbortController(); S.videoLoading = task;
+  $('videoName').textContent = 'MV動画を読み込み中…';
+  $('btnRemoveVideo').hidden = false;
+  let media = null;
+  try {
+    media = await J.loadVideo(file, { signal: task.signal });
+    $('videoName').textContent = '映像を読み込みました。元動画の音声を解析中…';
+    try { media.audio = await J.analyzeAudio(file); } catch (error) { media.audio = null; }
+    if (task.signal.aborted || S.videoLoading !== task) { J.releaseVideo(media); return false; }
+    J.releaseVideo(S.video); S.video = media; S.videoSeeking = false;
+    const sameSource = S.project.video.source && S.project.video.source.name === file.name && S.project.video.source.size === file.size;
+    S.project.video.source = { name: file.name, size: file.size, lastModified: file.lastModified, duration: media.duration, width: media.width, height: media.height };
+    if (!sameSource) {
+      const gcd = (a, b) => b ? gcd(b, a % b) : a;
+      const divisor = gcd(media.width, media.height);
+      S.project.aspect = `${media.width / divisor}:${media.height / divisor}`;
+    }
+    media.element.addEventListener('waiting', () => { if (S.video === media) AP.stop(); });
+    media.element.addEventListener('seeked', () => { if (S.video === media) S.need = true; });
+    media.element.addEventListener('error', () => { if (S.video === media) { pause(); toast('動画を再生できません。別の形式で読み込み直してください。'); } });
+    S.videoLoading = null; S.t = 0;
+    syncUI(); replan(); codecNote();
+    return true;
+  } catch (error) {
+    if (media) J.releaseVideo(media);
+    if (!task.signal.aborted) toast(error.message || 'MV動画を読み込めませんでした。');
+    return false;
+  } finally {
+    if (S.videoLoading === task) { S.videoLoading = null; syncVideoUI(); }
+  }
+}
+
 /* song file -> beat analysis (file input, or a host such as the After Effects panel) */
 async function loadAudioFile(f) {
+  if (S.exporting) return false;
+  if (S.audioLoading) S.audioLoading.abort();
+  const task = new AbortController(); S.audioLoading = task;
   $('audioName').textContent = '解析中…';
   try {
     pause();
-    S.audio = await J.analyzeAudio(f);
+    const audio = await J.analyzeAudio(f);
+    if (task.signal.aborted || S.audioLoading !== task) return false;
+    S.audio = audio;
+    if (S.video) S.project.video.audioSource = 'audio';
     $('audioName').textContent = `${f.name}（${J.fmtTime(S.audio.duration)}・約${S.audio.bpm}BPM）`;
     S.project.timing.snap = true;
     syncUI(); replan();
     return true;
-  } catch (err) { $('audioName').textContent = '読み込めませんでした: ' + err.message; S.audio = null; return false; }
+  } catch (err) {
+    if (!task.signal.aborted) $('audioName').textContent = '読み込めませんでした: ' + err.message;
+    return false;
+  } finally {
+    if (S.audioLoading === task) { S.audioLoading = null; syncVideoUI(); }
+  }
 }
 
 /* ---------------- boot ---------------- */
@@ -799,5 +990,5 @@ function boot() {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 J.ui = S;
 // hooks for hosts that embed the app (the After Effects CEP panel)
-J.uiApi = { toast, replan, syncUI, pause, seek, flushSave, loadAudioFile, restartPreview };
+J.uiApi = { toast, replan, syncUI, play, pause, seek, flushSave, loadAudioFile, loadVideoFile, removeVideo, runExport, restartPreview };
 })();

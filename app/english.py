@@ -1,6 +1,19 @@
 """English copy for the browser edition. The Japanese source stays authoritative."""
 
 BODY = {
+    'MVに文字を重ねる': 'Add lyrics to an MV',
+    '動画を読み込み、歌詞の動きをそのまま重ねて書き出せます。': 'Import a video, add animated lyrics and export the composite.',
+    'MV動画を読み込む': 'Import MV video', '動画を外す': 'Remove video',
+    '動画なし · MP4 / WebM など': 'No video · MP4, WebM and more',
+    '映像の収め方': 'Video fit', '全体を収める': 'Fit whole video', '画面いっぱい': 'Fill frame',
+    '使用する音声': 'Audio source', '元動画の音声': 'Video audio',
+    '別に読み込んだ曲': 'Imported audio', '音声なし': 'Mute',
+    '文字の配置プリセット': 'Text placement presets',
+    '中央': 'Center', '下に配置': 'Lower', '上に配置': 'Upper',
+    '文字の大きさ': 'Text scale', '左右の位置': 'Horizontal position',
+    '上下の位置': 'Vertical position', '映像を暗くする': 'Dim video',
+    '文字に影を付ける': 'Text shadow',
+    '歌詞の開始・終了は下の行リストで調整。MVの長さで書き出します。動画は端末内で処理されます。': 'Adjust lyric start and end times in the line list below. Export uses the MV duration. Video processing stays on your device.',
     '歌詞の言語': 'Lyrics language', '<option value="auto">自動判定</option>': '<option value="auto">Auto-detect</option>',
     '<button id="btnAddFont">追加</button>': '<button id="btnAddFont">Add</button>',
     '曲名': 'Song title', '自動': 'Auto',
@@ -86,6 +99,27 @@ BODY = {
 }
 
 UI = {
+    '（元動画）': ' (source video)',
+    '再読み込みが必要: ': 'Reimport needed: ',
+    '動画なし · MP4 / WebM など': 'No video · MP4, WebM and more',
+    '保存した設定を使うには、同じMV動画を読み込み直してください。': 'Reimport the same MV video to use the saved settings.',
+    '元動画の音声を読み取れませんでした。書き出しには別の曲を読み込むか「音声なし」を選んでください。': 'Could not read the video audio. Import a separate audio file or select Mute before exporting.',
+    '「曲を読み込む」で使用する音声を選んでください。': 'Use Import audio to choose an audio file.',
+    '動画の終了より後に始まる歌詞があります。開始時刻を調整してください。': 'Some lyrics start after the video ends. Adjust their start times.',
+    'MV動画を読み込み中…': 'Loading MV video…',
+    '映像を読み込みました。元動画の音声を解析中…': 'Video loaded. Analyzing the video audio…',
+    '動画を再生できません。別の形式で読み込み直してください。': 'Could not play the video. Reimport it in another format.',
+    'MV動画を読み込めませんでした。': 'Could not import the MV video.',
+    '動画を再生できませんでした。再生ボタンをもう一度押してください。': 'Could not play the video. Press Play again.',
+    '${i + 1}行目の終了秒': 'Line ${i + 1} end time (s)',
+    '今の再生位置を開始にする': 'Set start to current playback position',
+    '開始を現在位置へ': 'Start here', '終了を自動に戻す': 'Reset end to automatic',
+    '<label>終了 ': '<label>End ',
+    '保存したMV動画をもう一度読み込んでください。': 'Reimport the MV video used by this project.',
+    '元動画の音声を読み取れません。「別に読み込んだ曲」を使うか「音声なし」を選んでください。': 'Could not read the video audio. Select Imported audio and import an audio file, or select Mute.',
+    '使用する曲を読み込んでください。': 'Import the audio file you want to use.',
+    '動画・音声の読み込みが終わってから書き出してください。': 'Wait for the video and audio to finish loading before exporting.',
+    '曲を使う場合は、曲も読み込み直してください。': 'Reimport the audio file if you want to use it.',
     '歌詞の言語：自動判定 → ': 'Lyrics language: auto-detect → ', '歌詞の言語：': 'Lyrics language: ',
     '${S.plan.cuts.length}カット': '${S.plan.cuts.length} cuts',
     '${i + 1}行目の開始秒': 'Line ${i + 1} start time (s)',
@@ -142,9 +176,26 @@ UI = {
 }
 
 EXPORT = {
+    '音声を準備中': 'Preparing audio',
+    'PNG画像を作成できませんでした。出力解像度を下げて再試行してください。': 'Could not create the PNG image. Lower the output resolution and try again.',
+    'エンコーダーが停止しました。もう一度書き出してください。': 'The encoder stopped. Please export again.',
+    'このブラウザでは音声付きMP4を書き出せません。Chrome / Edge で開くか、「音声を含める」をオフにしてください。': 'This browser cannot export MP4 with audio. Open in Chrome or Edge, or disable Include audio in video.',
+    '書き出し用の描画領域を作成できませんでした。': 'Could not create the export canvas.',
     'このブラウザは動画エンコード（WebCodecs）に対応していません。Chrome か Edge の最新版で開いてください。': 'Video encoding (WebCodecs) is unavailable. Open in the latest Chrome or Edge.',
     'キャンセルしました': 'Canceled', 'フレーム ': 'Frame ',
     '音声をエンコード中': 'Encoding audio', '完了': 'Done',
+}
+
+MEDIA = {
+    'キャンセルしました': 'Canceled',
+    '動画をデコードできませんでした。別の形式で保存して読み込んでください。': 'Could not decode this video. Save it in another format and import it again.',
+    'このブラウザでは動画の形式を再生できません。MP4（H.264）などに変換して読み込んでください。': 'This browser cannot play this video format. Convert it to a supported format such as H.264 MP4 and import it again.',
+    '動画を読み込めませんでした。ファイルを確認してください。': 'Could not load the video. Please check the file.',
+    '動画ファイルを選んでください。': 'Select a video file.',
+    '動画の長さを取得できませんでした。動画編集ソフトなどで保存し直して読み込んでください。': 'Could not determine the video duration. Save it again with a video editor and reimport it.',
+    '動画の読み込みがタイムアウトしました。ファイルの形式を確認してください。': 'Video loading timed out. Check the file format.',
+    '動画の読み込みが完了していません。': 'The video has not finished loading.',
+    '動画のフレーム取得がタイムアウトしました。別の形式で保存してお試しください。': 'Retrieving a video frame timed out. Try saving the video in another format.',
 }
 
 AE_UI = {
@@ -316,4 +367,6 @@ def localize_js(source, filename):
         return replace_copy(source, UI)
     if filename.endswith('11_export.js'):
         return replace_copy(source, EXPORT)
+    if filename.endswith('10_video.js'):
+        return replace_copy(source, MEDIA)
     return source

@@ -37,6 +37,32 @@
         </div>
       </div>
 
+      <div class="sec mv-section">
+        <div class="sec-h"><h2>MVに文字を重ねる</h2><span class="mv-pill">VIDEO + TYPE</span></div>
+        <p class="hint">動画を読み込み、歌詞の動きをそのまま重ねて書き出せます。</p>
+        <div class="row">
+          <label class="file mv-load">MV動画を読み込む<input id="videoFile" type="file" accept="video/*,.mp4,.webm,.mov,.m4v"></label>
+          <button id="btnRemoveVideo" class="ghost small" hidden>動画を外す</button>
+        </div>
+        <div id="videoName" class="muted audio-name" role="status" aria-live="polite">動画なし · MP4 / WebM など</div>
+        <p id="videoWarning" class="mv-warning" role="status" hidden></p>
+        <div id="videoControls" hidden>
+          <div class="fields">
+            <label class="field">映像の収め方<select id="videoFit"><option value="contain">全体を収める</option><option value="cover">画面いっぱい</option></select></label>
+            <label class="field">使用する音声<select id="videoAudioSource"><option value="video">元動画の音声</option><option value="audio">別に読み込んだ曲</option><option value="mute">音声なし</option></select></label>
+          </div>
+          <div class="row mv-presets" role="group" aria-label="文字の配置プリセット">
+            <button type="button" data-mv-preset="center">中央</button><button type="button" data-mv-preset="lower">下に配置</button><button type="button" data-mv-preset="upper">上に配置</button>
+          </div>
+          <label class="mv-slider">文字の大きさ <output id="videoTextScaleValue"></output><input id="videoTextScale" type="range" min="20" max="100" step="1"></label>
+          <label class="mv-slider">左右の位置 <output id="videoXValue"></output><input id="videoX" type="range" min="0" max="100" step="1"></label>
+          <label class="mv-slider">上下の位置 <output id="videoYValue"></output><input id="videoY" type="range" min="0" max="100" step="1"></label>
+          <label class="mv-slider">映像を暗くする <output id="videoDimValue"></output><input id="videoDim" type="range" min="0" max="80" step="1"></label>
+          <label class="row"><input id="videoShadow" type="checkbox">文字に影を付ける</label>
+          <p class="hint">歌詞の開始・終了は下の行リストで調整。MVの長さで書き出します。動画は端末内で処理されます。</p>
+        </div>
+      </div>
+
       <div class="sec">
         <div class="sec-h"><h2>曲とタイミング</h2></div>
         <div id="audioName" class="muted audio-name">曲なし（読み込むと拍を検出してカットを合わせます）</div>
