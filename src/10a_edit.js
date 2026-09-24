@@ -30,7 +30,12 @@ function uniqueId(value, used) {
 }
 
 function normalizeClip(value, source, used) {
-  const clip = object(value), minSpan = Math.min(MIN_SPAN, source.duration);
+  const clip = object(value), requestedIn = number(clip.in, NaN), requestedOut = number(clip.out, NaN);
+  // An explicit valid trim can be shorter than a frame (for example the exact
+  // tail of a song). Preserve it through save/reload and settings updates.
+  // MIN_SPAN remains the recovery default and the minimum for a user split.
+  const validSpan = requestedIn >= 0 && requestedOut <= source.duration && requestedOut > requestedIn ? requestedOut - requestedIn : Infinity;
+  const minSpan = Math.min(MIN_SPAN, source.duration, validSpan);
   const begin = clamp(number(clip.in, 0), 0, Math.max(0, source.duration - minSpan));
   const end = clamp(number(clip.out, source.duration), begin + minSpan, source.duration);
   const speed = clamp(number(clip.speed, 1), 0.25, 4);

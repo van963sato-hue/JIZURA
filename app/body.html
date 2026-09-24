@@ -108,6 +108,61 @@
         <button id="btnShuffle" class="accent" title="設定はそのままで構成だけ再抽選（ロックした行は維持）">シャッフル</button>
         <button id="btnOmakase" class="primary" title="スタイル・雰囲気・演出・配色をまるごとランダムに（キー R）">おまかせ</button>
       </div>
+      <details id="directorPanel" class="director-panel">
+        <summary><span><b>MV制作</b><small>曲から絵コンテ、10秒動画、完成MVへ</small></span><span class="mv-pill">FRAME × H3</span></summary>
+        <div class="director-body">
+          <p class="director-format"><b>16:9の絵コンテ1枚に、3×3の9カット。</b><br>1枚が10秒の動画1本に対応します。歌詞や文字は絵に入れず、仕上げで字面に重ねます。</p>
+          <ol class="director-steps" aria-label="MV制作の流れ"><li>曲・歌詞</li><li>GPTで演出</li><li>FRAME・絵コンテ</li><li>H3で10秒動画</li><li>自動で組み立て</li></ol>
+          <details class="director-section" open>
+            <summary>1 · 曲と制作の方向を用意する</summary>
+            <div class="director-section-body">
+              <div class="row"><label class="file">制作に使う曲を読み込む<input id="directorAudio" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"></label><span id="directorSong" class="muted" role="status">左の「歌詞」と、読み込んだ曲を使います</span></div>
+              <label class="field">MVの構想<textarea id="directorConcept" rows="3" placeholder="物語、感情の変化、象徴、最後に残したい印象"></textarea></label>
+              <div class="director-input-grid">
+                <label class="field">キャラクターと守る設定<textarea id="directorIdentity" rows="3" placeholder="髪・目・服装・体格・人数など。参照画像はGPTにも添付してください"></textarea></label>
+                <label class="field">画風・映像の方向<textarea id="directorStyle" rows="3" placeholder="水彩背景＋アニメ塗り、色、光、避けたい演出など"></textarea></label>
+              </div>
+              <button id="directorDraft" type="button" class="accent">曲を解析して10秒ごとの制作台帳を作る</button>
+              <p class="hint">ここで解析するのは曲の長さ・推定テンポ・拍・強弱です。音高や楽譜の完全な採譜、歌詞の自動聴き取りではありません。歌詞の時刻は試聴して確認します。</p>
+            </div>
+          </details>
+          <div id="directorWorkspace" hidden>
+            <p id="directorAnalysis" class="director-analysis" role="status"></p>
+            <details class="director-section" open>
+              <summary>2 · GPTへ制作依頼を渡す</summary>
+              <div class="director-section-body">
+                <p class="hint">制作パックと曲・キャラクター参照をGPTへ渡してください。GPTが演出とFRAMEの構図を選び、文字なし絵コンテの連続生成用指示・H3用プロンプト・歌詞時刻を制作します。</p>
+                <div class="row director-actions"><button id="directorCopyPack" type="button">GPTへの制作パックをコピー</button><button id="directorDownloadPack" type="button" class="ghost">制作パックを保存</button><label class="file">GPTの制作データを読み込む<input id="directorImport" type="file" accept=".json,application/json"></label></div>
+                <details><summary>制作データを貼り付ける</summary><textarea id="directorJSON" rows="5" spellcheck="false" aria-label="GPTの制作データJSON"></textarea><button id="directorImportText" type="button">貼り付けたJSONを読み込む</button></details>
+                <p class="hint">この画面からGPTやH3へ自動送信はしません。生成はGPTとH3で行い、完成した素材を下の台帳へ戻します。</p>
+              </div>
+            </details>
+            <details class="director-section">
+              <summary>歌詞の時刻を確認・修正する <span id="directorTimingSummary" class="director-status"></span></summary>
+              <div class="director-section-body">
+                <p class="hint">推定時刻は仮置きです。各行の開始位置から曲を聴き、歌い始めと終わりを直して「確認済み」にしてください。確認が済むまでMVの組み立ては待機します。</p>
+                <div class="director-table-wrap"><table class="director-timing"><thead><tr><th>歌詞</th><th>開始(秒)</th><th>終了(秒)</th><th>確認</th></tr></thead><tbody id="directorTiming"></tbody></table></div>
+                <div class="row"><button id="directorPreviewStop" type="button" class="ghost">試聴を止める</button><label class="check"><input id="directorConfirmAll" type="checkbox">全行を試聴・修正したので、時刻を確認済みにする</label></div>
+              </div>
+            </details>
+            <details class="director-section" open>
+              <summary>3・4 · 絵コンテと10秒動画をそろえる</summary>
+              <div class="director-section-body">
+                <div class="row"><label class="file">動画をまとめて読み込む<input id="directorVideos" type="file" accept="video/*,.mp4,.webm,.mov,.m4v" multiple></label><span class="hint">S001.mp4、S002.mp4…は同じ番号へ割り当てます</span></div>
+                <div id="directorUnmapped" class="director-unmapped" hidden></div>
+                <p class="hint">絵コンテは制作の参照用です。完成MVには動画を使います。参照画像は任意で、保存したプロジェクトを開き直すときは素材を選び直してください。</p>
+                <div id="directorSegments" class="director-segments"></div>
+              </div>
+            </details>
+            <div class="director-finish">
+              <div><b>5 · 字面でMVを組み立てる</b><p id="directorReadiness" class="hint" role="status"></p></div>
+              <div class="row"><button id="directorAssemble" type="button" class="primary">動画・元の曲・歌詞を自動配置</button><button id="directorRestore" type="button" class="ghost" hidden>組み立て前に戻す</button><button id="directorSaveJSON" type="button" class="ghost">制作台帳を保存</button></div>
+              <p class="hint">番号順に動画をつなぎ、元の曲と確認済みの歌詞時刻を反映します。最後の動画は曲の終わりに合わせて短くします。プレビューで確認してから、通常のMP4書き出しへ進んでください。</p>
+            </div>
+          </div>
+          <p id="directorNotice" class="director-notice" role="status" aria-live="polite" hidden></p>
+        </div>
+      </details>
       <section id="videoEditor" class="video-editor" aria-labelledby="videoEditorTitle" hidden>
         <div class="sec-h video-editor-heading">
           <h2 id="videoEditorTitle">動画編集</h2>

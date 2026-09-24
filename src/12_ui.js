@@ -15,6 +15,7 @@ const ICON = {
 const S = { project: null, plan: null, audio: null, audioLoading: null, video: null, videoLoading: null, videoSeeking: false, seekId: 0, renderer: new J.Renderer(), playing: false, t: 0, t0: 0, loop: true, need: true, exporting: null, tap: null, slow: false, lineEls: [], curLine: -2 };
 Object.assign(S, { media: new Map(), editTimeline: { clips: [], duration: 0 }, activeClip: null, selectedClip: null, editPast: [], editFuture: [], sequenceAudio: null });
 Object.assign(S, { images: new Map(), imageLoading: null });
+Object.assign(S, { directorAssemblyBackup: null });
 const hasVideoEdit = () => !!(S.project && S.project.edit && S.project.edit.clips.length);
 const endEpsilon = () => Math.min(1e-6, S.plan.duration / 1000);
 
@@ -46,6 +47,7 @@ function mergeProject(p) {
   if (p && p.video && p.video.source && typeof p.video.source.name === 'string') o.video.source = p.video.source;
   o.edit = J.normalizeVideoEdit(p && p.edit, o.video.source);
   o.images = J.normalizeImageOverlays(p && p.images);
+  o.director = J.directorNormalize(p && p.director);
   const en = J.defaultProject().enabled;
   for (const g of Object.keys(en)) en[g] = Object.assign(en[g], ((p && p.enabled) || {})[g] || {});
   o.enabled = en;
@@ -114,6 +116,7 @@ function replan() {
   syncVideoUI();
   renderVideoEditor();
   if (J.imageUI) J.imageUI.render();
+  if (J.directorUI) J.directorUI.render();
   clearTimeout(warmTimer); warmTimer = setTimeout(warm, 450);
 }
 /* pre-decompose glyphs used by piece animations while the editor is idle, so playback does not hitch */
@@ -215,6 +218,7 @@ function updateTimeUI() {
 }
 function play() {
   if (S.exporting || S.videoLoading || S.audioLoading) return;
+  if (J.directorUI) J.directorUI.stopPreview();
   if (hasVideoEdit() && missingVideoSources().length) { toast('未読み込みの動画があります。元ファイルを追加してから再生してください。'); return; }
   if (hasVideoEdit()) {
     const clip = J.videoClipAt(S.editTimeline, S.t);
@@ -235,6 +239,7 @@ function play() {
   S.playing = true; $('btnPlay').textContent = '❚❚'; $('btnPlay').setAttribute('aria-label', '一時停止');
 }
 function pause() {
+  if (J.directorUI) J.directorUI.stopPreview();
   S.playing = false; AP.stop();
   if (S.video) S.video.element.pause();
   $('btnPlay').textContent = '▶'; $('btnPlay').setAttribute('aria-label', '再生'); S.need = true;
@@ -687,6 +692,7 @@ function baseName() {
 }
 async function runExport(kind) {
   if (S.exporting) return;
+  if (J.directorUI && J.directorUI.loading && J.directorUI.loading()) { toast('MV素材の読み込みが終わってから書き出してください。'); return; }
   if (S.imageLoading) { toast('画像の読み込みが終わってから書き出してください。'); return; }
   if (J.imageUI && J.imageUI.missingSources().length) { toast('未読み込みの画像があります。元ファイルを追加してから書き出してください。'); return; }
   if (S.videoLoading || S.audioLoading) { toast('動画・音声の読み込みが終わってから書き出してください。'); return; }
@@ -898,6 +904,8 @@ function bind() {
       if (S.audioLoading) S.audioLoading.abort(); S.audioLoading = null;
       releaseAllMedia(); S.audio = null; S.editPast = []; S.editFuture = []; S.selectedClip = null;
       if (J.imageUI) J.imageUI.reset();
+      if (J.directorUI) J.directorUI.reset();
+      S.directorAssemblyBackup = null;
       $('audioName').textContent = '曲を使う場合は、曲も読み込み直してください。';
       S.project = project; S.t = 0; replan(); syncUI();
     }
@@ -1026,6 +1034,11 @@ function renderVideoEditor() {
 function editSnapshot() { return { edit: JSON.parse(JSON.stringify(S.project.edit)), selected: S.selectedClip, t: S.t }; }
 function pruneMedia() {
   const keep = new Set(S.project.edit.clips.map(c => c.sourceId));
+  for (const segment of S.project.director?.segments || []) if (segment.sourceId) keep.add(segment.sourceId);
+  if (S.directorAssemblyBackup) {
+    for (const clip of S.directorAssemblyBackup.project.edit.clips) keep.add(clip.sourceId);
+    for (const segment of S.directorAssemblyBackup.project.director?.segments || []) if (segment.sourceId) keep.add(segment.sourceId);
+  }
   for (const snapshot of [...S.editPast, ...S.editFuture]) for (const clip of snapshot.edit.clips) keep.add(clip.sourceId);
   for (const [id, media] of S.media) if (!keep.has(id)) { J.releaseVideo(media); S.media.delete(id); }
 }
@@ -1077,7 +1090,7 @@ function bindVideoEditor() {
   $('clipApply').addEventListener('click', () => {
     const clip = S.editTimeline.clips.find(c => c.id === S.selectedClip); if (!clip) return;
     const patch = { in: +$('clipIn').value, out: +$('clipOut').value, speed: +$('clipSpeed').value, volume: +$('clipVolume').value / 100, fadeIn: +$('clipFadeIn').value, fadeOut: +$('clipFadeOut').value, flip: $('clipFlip').checked };
-    if ([patch.in, patch.out, patch.speed, patch.volume, patch.fadeIn, patch.fadeOut].some(v => !Number.isFinite(v)) || patch.in < 0 || patch.out > clip.source.duration + 0.001 || patch.out - patch.in < Math.min(0.04, clip.source.duration) - 0.0001) { toast('開始と終了を動画の範囲内で指定してください。終了は開始より後にしてください。'); return; }
+    if ([patch.in, patch.out, patch.speed, patch.volume, patch.fadeIn, patch.fadeOut].some(v => !Number.isFinite(v)) || patch.in < 0 || patch.out > clip.source.duration + 0.001 || patch.out <= patch.in || patch.out - patch.in < Math.min(0.04, clip.source.duration, clip.out - clip.in) - 0.0001) { toast('開始と終了を動画の範囲内で指定してください。終了は開始より後にしてください。'); return; }
     applyClipPatch(clip.id, patch);
   });
   $('clipVolume').addEventListener('input', () => { $('clipVolumeValue').textContent = $('clipVolume').value + '%'; });
@@ -1189,6 +1202,7 @@ async function loadAudioFile(f) {
     pause();
     const audio = await J.analyzeAudio(f);
     if (task.signal.aborted || S.audioLoading !== task) return false;
+    audio.size = f.size; audio.lastModified = f.lastModified;
     S.audio = audio;
     if (hasVideoEdit()) S.project.video.audioSource = 'audio';
     $('audioName').textContent = `${f.name}（${J.fmtTime(S.audio.duration)}・約${S.audio.bpm}BPM）`;
@@ -1199,8 +1213,59 @@ async function loadAudioFile(f) {
     if (!task.signal.aborted) $('audioName').textContent = '読み込めませんでした: ' + err.message;
     return false;
   } finally {
-    if (S.audioLoading === task) { S.audioLoading = null; syncVideoUI(); }
+    if (S.audioLoading === task) { S.audioLoading = null; syncVideoUI(); if (J.directorUI) J.directorUI.render(); }
   }
+}
+
+/* Director assembly is one reversible operation, including lyric timing.
+   Recompute from the validated model so stale or hand-edited result objects
+   cannot bypass source-length and timing checks. */
+function directorReady() {
+  if (S.exporting || S.videoLoading || S.audioLoading || S.imageLoading ||
+      (J.directorUI && J.directorUI.loading && J.directorUI.loading())) {
+    throw new Error('素材の読み込み・書き出しが終わってから操作してください。');
+  }
+}
+function applyDirectorAssembly(result, model) {
+  directorReady();
+  const director = J.directorNormalize(model);
+  if (!director) throw new Error('MV設計データを確認してください。');
+  const song = director.song, audio = S.audio;
+  if (!audio || Math.abs(audio.duration - song.duration) > 0.05 ||
+      (song.name && audio.name !== song.name) || (song.size && audio.size !== song.size)) {
+    throw new Error('MV設計に使用した元の曲を読み込んでください。曲を変更した場合は設計を作り直してください。');
+  }
+  const assembled = J.directorAssemble(director, S.media);
+  const next = mergeProject(JSON.parse(JSON.stringify(S.project)));
+  next.director = director;
+  next.edit = J.normalizeVideoEdit(assembled.edit);
+  next.lyrics = assembled.lyrics;
+  next.aspect = '16:9'; next.includeAudio = true;
+  next.video.audioSource = 'audio';
+  Object.assign(next.timing, { lineTimes: assembled.lyricTimes, lineEnds: assembled.lyricEnds, useAudioLength: true, snap: false });
+  // Keep source references alive until the explicit assembly undo is discarded.
+  S.directorAssemblyBackup = { project: JSON.parse(JSON.stringify(S.project)), audio: S.audio, selected: S.selectedClip, t: S.t };
+  pause(); S.tap = null; $('tapPanel').hidden = true; $('btnTap').setAttribute('aria-pressed', 'false');
+  S.editPast = []; S.editFuture = [];
+  S.project = next;
+  restoreEdit({ edit: next.edit, selected: next.edit.clips[0]?.id || null, t: 0 });
+  syncUI(); flushSave();
+  return true;
+}
+function restoreDirectorAssembly() {
+  directorReady();
+  const backup = S.directorAssemblyBackup;
+  if (!backup) return false;
+  // Undo the fields assembly owns. Preserve later image/style edits and their
+  // live media history instead of resurrecting already released image assets.
+  const restored = Object.assign({}, S.project);
+  for (const key of ['edit', 'lyrics', 'timing', 'aspect', 'includeAudio', 'video', 'director']) restored[key] = backup.project[key];
+  pause(); S.project = mergeProject(restored); S.audio = backup.audio;
+  S.editPast = []; S.editFuture = []; S.directorAssemblyBackup = null;
+  restoreEdit({ edit: S.project.edit, selected: backup.selected, t: backup.t });
+  $('audioName').textContent = S.audio ? `${S.audio.name}（${J.fmtTime(S.audio.duration)}・約${S.audio.bpm}BPM）` : '曲を使う場合は、曲も読み込み直してください。';
+  syncUI(); flushSave();
+  return true;
 }
 
 /* ---------------- boot ---------------- */
@@ -1217,5 +1282,5 @@ function boot() {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 J.ui = S;
 // hooks for hosts that embed the app (the After Effects CEP panel)
-J.uiApi = { toast, replan, syncUI, play, pause, seek, flushSave, loadAudioFile, loadVideoFile, loadVideoFiles, removeVideo, runExport, restartPreview, selectClip, applyClipPatch, splitSelectedClip, editUndo, editRedo };
+J.uiApi = { toast, replan, syncUI, play, pause, seek, flushSave, loadAudioFile, loadVideoFile, loadVideoFiles, removeVideo, runExport, restartPreview, selectClip, applyClipPatch, splitSelectedClip, editUndo, editRedo, applyDirectorAssembly, restoreDirectorAssembly, pruneMedia };
 })();

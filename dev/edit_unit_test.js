@@ -26,6 +26,11 @@ assert.equal(legacy.clips[0].speed, 1); assert.equal(legacy.clips[0].volume, 1);
 assert.equal(J.normalizeVideoEdit({}, source).clips.length, 0);
 assert.equal(J.normalizeVideoEdit({ sources: [], clips: [] }, source).clips.length, 0);
 assert.equal(J.normalizeVideoEdit(null, { ...source, duration: Infinity }).sources.length, 0);
+const tinyTrim = J.normalizeVideoEdit({ sources: [source], clips: [{ id: 'tail', sourceId: source.id, in: 1, out: 1.01 }] });
+close(tinyTrim.clips[0].out - tinyTrim.clips[0].in, 0.01);
+close(J.buildVideoTimeline(J.normalizeVideoEdit(clone(tinyTrim))).duration, 0.01, 'explicit subframe trims survive a persistence roundtrip');
+close(J.buildVideoTimeline(J.updateVideoClip(tinyTrim, 'tail', { volume: 0.4 })).duration, 0.01, 'changing volume does not expand a short clip');
+assert.throws(() => J.splitVideoClip(tinyTrim, 'tail', 0.005), /分割位置/, 'short trims do not weaken the split minimum');
 
 const corrupt = J.normalizeVideoEdit({
   sources: [source, { ...source, duration: 99 }, { ...source, id: 'bad', duration: NaN }, { ...source, id: 'short', duration: 0.01 }],
