@@ -62,8 +62,12 @@ class Renderer {
     // motion is quantised to 'koma' drawings per second (24fps timebase); random flicker runs on a <=24Hz clock
     const stepDur = J.stepDur(fx, fps);
     const clock = J.komaOf(fx) > 0 ? stepDur : 1 / 24;
-    const tq = Math.floor(t / stepDur + 1e-6) * stepDur;
-    const mainCut = J.cutAt(plan, tq);
+    let tq = Math.floor(t / stepDur + 1e-6) * stepDur;
+    const preciseCut = opt.preciseCuts ? J.cutAt(plan, t) : null;
+    // MV cue boundaries use the actual media clock; short cues must not vanish
+    // between held-animation ticks, and a completed cue must leave a clean gap.
+    if (preciseCut && (tq < preciseCut.start || preciseCut.dur < stepDur)) tq = t;
+    const mainCut = opt.preciseCuts ? preciseCut : J.cutAt(plan, tq);
     const sc = st.schemes[mainCut ? mainCut.scheme % st.schemes.length : 0] || st.schemes[0];
     const allowFilter = this.filterOK && !opt.fast;
     if (J.setLang) J.setLang(plan.lang || 'ja');           // faces follow the plan's lyric language
@@ -116,6 +120,14 @@ class Renderer {
       ctx.restore();
       ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
     }
+    // Image overlays need the style background separately from the lyrics so
+    // a layer can sit between them without inheriting text motion or colour.
+    if (opt.backgroundOnly) {
+      ctx.restore();
+      if (!opt.noPost) this.post(ctx, plan, t, tq, step, sc, scale, opt, allowFilter);
+      if (key && !opt.noPost) this.keyFinish(ctx, key, opt);
+      return;
+    }
     const shx = J.rs(step, 71) * shake * 16 * u, shy = J.rs(step, 72) * shake * 11 * u;
     // ---------- content passes ----------
     const passes = [
@@ -141,6 +153,7 @@ class Renderer {
       }
     }
     for (const P of passes) {
+      if (opt.preciseCuts && !mainCut) continue;
       if (P.pass !== 'main' && !ghostOn) continue;
       const tp = Math.max(0, tq - P.lag);
       const cut = P.lag ? J.cutAt(plan, tp) : mainCut;

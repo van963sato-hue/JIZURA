@@ -37,6 +37,32 @@
         </div>
       </div>
 
+      <div class="sec mv-section">
+        <div class="sec-h"><h2>MVに文字を重ねる</h2><span class="mv-pill">VIDEO + TYPE</span></div>
+        <p class="hint">複数の動画をつなぎ、カットや速度を調整して歌詞の動きを重ねられます。</p>
+        <div class="row">
+          <label class="file mv-load">動画を追加／再読み込み<input id="videoFile" type="file" accept="video/*,.mp4,.webm,.mov,.m4v" multiple></label>
+          <button id="btnRemoveVideo" class="ghost small" hidden>動画をすべて外す</button>
+        </div>
+        <div id="videoName" class="muted audio-name" role="status" aria-live="polite">動画なし · MP4 / WebM など</div>
+        <p id="videoWarning" class="mv-warning" role="status" hidden></p>
+        <div id="videoControls" hidden>
+          <div class="fields">
+            <label class="field">映像の収め方<select id="videoFit"><option value="contain">全体を収める</option><option value="cover">画面いっぱい</option></select></label>
+            <label class="field">使用する音声<select id="videoAudioSource"><option value="video">元動画の音声</option><option value="audio">別に読み込んだ曲</option><option value="mute">音声なし</option></select></label>
+          </div>
+          <div class="row mv-presets" role="group" aria-label="文字の配置プリセット">
+            <button type="button" data-mv-preset="center">中央</button><button type="button" data-mv-preset="lower">下に配置</button><button type="button" data-mv-preset="upper">上に配置</button>
+          </div>
+          <label class="mv-slider">文字の大きさ <output id="videoTextScaleValue"></output><input id="videoTextScale" type="range" min="20" max="100" step="1"></label>
+          <label class="mv-slider">左右の位置 <output id="videoXValue"></output><input id="videoX" type="range" min="0" max="100" step="1"></label>
+          <label class="mv-slider">上下の位置 <output id="videoYValue"></output><input id="videoY" type="range" min="0" max="100" step="1"></label>
+          <label class="mv-slider">映像を暗くする <output id="videoDimValue"></output><input id="videoDim" type="range" min="0" max="80" step="1"></label>
+          <label class="row"><input id="videoShadow" type="checkbox">文字に影を付ける</label>
+          <p class="hint">歌詞の開始・終了は下の行リストで調整。編集した動画の長さで書き出します。動画は端末内で処理されます。</p>
+        </div>
+      </div>
+
       <div class="sec">
         <div class="sec-h"><h2>曲とタイミング</h2></div>
         <div id="audioName" class="muted audio-name">曲なし（読み込むと拍を検出してカットを合わせます）</div>
@@ -82,7 +108,164 @@
         <button id="btnShuffle" class="accent" title="設定はそのままで構成だけ再抽選（ロックした行は維持）">シャッフル</button>
         <button id="btnOmakase" class="primary" title="スタイル・雰囲気・演出・配色をまるごとランダムに（キー R）">おまかせ</button>
       </div>
-      <canvas id="timeline" aria-label="タイムライン（クリックで移動）"></canvas>
+      <details id="directorPanel" class="director-panel">
+        <summary><span><b>MV制作</b><small>曲から絵コンテ、10秒動画、完成MVへ</small></span><span class="mv-pill">FRAME × H3</span></summary>
+        <div class="director-body">
+          <p class="director-format"><b>16:9の絵コンテ1枚に、3×3の9カット。</b><br>1枚が10秒の動画1本に対応します。歌詞や文字は絵に入れず、仕上げで字面に重ねます。</p>
+          <ol class="director-steps" aria-label="MV制作の流れ"><li>曲・歌詞</li><li>GPTで演出</li><li>FRAME・絵コンテ</li><li>H3で10秒動画</li><li>自動で組み立て</li></ol>
+          <details class="director-section" open>
+            <summary>1 · 曲と制作の方向を用意する</summary>
+            <div class="director-section-body">
+              <div class="row"><label class="file">制作に使う曲を読み込む<input id="directorAudio" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"></label><span id="directorSong" class="muted" role="status">左の「歌詞」と、読み込んだ曲を使います</span></div>
+              <label class="field">MVの構想<textarea id="directorConcept" rows="3" placeholder="物語、感情の変化、象徴、最後に残したい印象"></textarea></label>
+              <div class="director-input-grid">
+                <label class="field">キャラクターと守る設定<textarea id="directorIdentity" rows="3" placeholder="髪・目・服装・体格・人数など。参照画像はGPTにも添付してください"></textarea></label>
+                <label class="field">画風・映像の方向<textarea id="directorStyle" rows="3" placeholder="水彩背景＋アニメ塗り、色、光、避けたい演出など"></textarea></label>
+              </div>
+              <button id="directorDraft" type="button" class="accent">曲を解析して10秒ごとの制作台帳を作る</button>
+              <p class="hint">ここで解析するのは曲の長さ・推定テンポ・拍・強弱です。音高や楽譜の完全な採譜、歌詞の自動聴き取りではありません。歌詞の時刻は試聴して確認します。</p>
+            </div>
+          </details>
+          <div id="directorWorkspace" hidden>
+            <p id="directorAnalysis" class="director-analysis" role="status"></p>
+            <details class="director-section" open>
+              <summary>2 · GPTへ制作依頼を渡す</summary>
+              <div class="director-section-body">
+                <p class="hint">制作パックと曲・キャラクター参照をGPTへ渡してください。GPTが演出とFRAMEの構図を選び、文字なし絵コンテの連続生成用指示・H3用プロンプト・歌詞時刻を制作します。</p>
+                <div class="row director-actions"><button id="directorCopyPack" type="button">GPTへの制作パックをコピー</button><button id="directorDownloadPack" type="button" class="ghost">制作パックを保存</button><label class="file">GPTの制作データを読み込む<input id="directorImport" type="file" accept=".json,application/json"></label></div>
+                <details><summary>制作データを貼り付ける</summary><textarea id="directorJSON" rows="5" spellcheck="false" aria-label="GPTの制作データJSON"></textarea><button id="directorImportText" type="button">貼り付けたJSONを読み込む</button></details>
+                <p class="hint">この画面からGPTやH3へ自動送信はしません。生成はGPTとH3で行い、完成した素材を下の台帳へ戻します。</p>
+              </div>
+            </details>
+            <details class="director-section">
+              <summary>歌詞の時刻を確認・修正する <span id="directorTimingSummary" class="director-status"></span></summary>
+              <div class="director-section-body">
+                <p class="hint">推定時刻は仮置きです。各行の開始位置から曲を聴き、歌い始めと終わりを直して「確認済み」にしてください。確認が済むまでMVの組み立ては待機します。</p>
+                <div class="director-table-wrap"><table class="director-timing"><thead><tr><th>歌詞</th><th>開始(秒)</th><th>終了(秒)</th><th>確認</th></tr></thead><tbody id="directorTiming"></tbody></table></div>
+                <div class="row"><button id="directorPreviewStop" type="button" class="ghost">試聴を止める</button><label class="check"><input id="directorConfirmAll" type="checkbox">全行を試聴・修正したので、時刻を確認済みにする</label></div>
+              </div>
+            </details>
+            <details class="director-section" open>
+              <summary>3・4 · 絵コンテと10秒動画をそろえる</summary>
+              <div class="director-section-body">
+                <div class="row"><label class="file">動画をまとめて読み込む<input id="directorVideos" type="file" accept="video/*,.mp4,.webm,.mov,.m4v" multiple></label><span class="hint">S001.mp4、S002.mp4…は同じ番号へ割り当てます</span></div>
+                <div id="directorUnmapped" class="director-unmapped" hidden></div>
+                <p class="hint">絵コンテは制作の参照用です。完成MVには動画を使います。参照画像は任意で、保存したプロジェクトを開き直すときは素材を選び直してください。</p>
+                <div id="directorSegments" class="director-segments"></div>
+              </div>
+            </details>
+            <div class="director-finish">
+              <div><b>5 · 字面でMVを組み立てる</b><p id="directorReadiness" class="hint" role="status"></p></div>
+              <div class="row"><button id="directorAssemble" type="button" class="primary">動画・元の曲・歌詞を自動配置</button><button id="directorRestore" type="button" class="ghost" hidden>組み立て前に戻す</button><button id="directorSaveJSON" type="button" class="ghost">制作台帳を保存</button></div>
+              <p class="hint">番号順に動画をつなぎ、元の曲と確認済みの歌詞時刻を反映します。最後の動画は曲の終わりに合わせて短くします。プレビューで確認してから、通常のMP4書き出しへ進んでください。</p>
+            </div>
+          </div>
+          <p id="directorNotice" class="director-notice" role="status" aria-live="polite" hidden></p>
+        </div>
+      </details>
+      <section id="videoEditor" class="video-editor" aria-labelledby="videoEditorTitle" hidden>
+        <div class="sec-h video-editor-heading">
+          <h2 id="videoEditorTitle">動画編集</h2>
+          <span id="clipSummary" class="clip-summary mono" role="status" aria-live="polite"></span>
+        </div>
+        <div id="clipTimeline" class="clip-timeline" role="group" aria-label="動画クリップ（選んで編集）"></div>
+        <p id="clipSelection" class="clip-selection" role="status" aria-live="polite">クリップを選択してください</p>
+        <p id="clipMissing" class="mv-warning" role="status" hidden></p>
+        <div class="clip-toolbar">
+          <div class="clip-actions" role="group" aria-label="選択クリップの編集">
+            <button id="clipSplit" type="button" class="accent" title="現在の再生位置でクリップを2つに分ける">再生位置で分割</button>
+            <button id="clipDuplicate" type="button" title="選択中のクリップを複製する">複製</button>
+            <button id="clipMoveLeft" type="button" aria-label="選択クリップを1つ前へ移動" title="ひとつ前へ移動">← 前へ</button>
+            <button id="clipMoveRight" type="button" aria-label="選択クリップを1つ後ろへ移動" title="ひとつ後ろへ移動">後ろへ →</button>
+            <button id="clipDelete" type="button" class="clip-delete" title="選択中のクリップを削除する">削除</button>
+          </div>
+          <div class="clip-history" role="group" aria-label="動画編集の履歴">
+            <button id="editUndo" type="button" class="ghost" aria-label="動画編集を元に戻す" title="動画編集を元に戻す">↶ 戻す</button>
+            <button id="editRedo" type="button" class="ghost" aria-label="動画編集をやり直す" title="動画編集をやり直す">↷ やり直す</button>
+          </div>
+        </div>
+        <div class="clip-settings">
+          <div class="clip-trim">
+            <label class="field" for="clipIn">元動画の開始（秒）<input id="clipIn" type="number" min="0" step="0.01" inputmode="decimal"></label>
+            <button id="clipSetIn" type="button" class="ghost" title="プレビューの再生位置を切り出しの開始にする">再生位置を開始に</button>
+            <label class="field" for="clipOut">元動画の終了（秒）<input id="clipOut" type="number" min="0" step="0.01" inputmode="decimal"></label>
+            <button id="clipSetOut" type="button" class="ghost" title="プレビューの再生位置を切り出しの終了にする">再生位置を終了に</button>
+          </div>
+          <div class="clip-adjustments">
+            <label class="field" for="clipSpeed">再生速度<select id="clipSpeed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×（通常）</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option></select></label>
+            <label class="field" for="clipFadeIn">フェードイン（秒）<input id="clipFadeIn" type="number" min="0" step="0.1" value="0" inputmode="decimal"></label>
+            <label class="field" for="clipFadeOut">フェードアウト（秒）<input id="clipFadeOut" type="number" min="0" step="0.1" value="0" inputmode="decimal"></label>
+            <label class="clip-volume" for="clipVolume"><span>クリップの音量</span><output id="clipVolumeValue" for="clipVolume">100%</output><input id="clipVolume" type="range" min="0" max="100" step="1" value="100"></label>
+          </div>
+        </div>
+        <div class="clip-apply-row">
+          <label class="clip-flip"><input id="clipFlip" type="checkbox">左右反転</label>
+          <button id="clipApply" type="button" class="primary">クリップに適用</button>
+        </div>
+        <p class="hint clip-hint">歌詞の時刻は、編集後の動画全体のタイムラインに対応します。カットや速度変更後は歌詞のタイミングも確認してください。速度を変えると元動画の音声の高さも変わります。</p>
+      </section>
+      <section id="imageEditor" class="image-editor" aria-labelledby="imageEditorTitle">
+        <div class="sec-h image-editor-heading">
+          <h2 id="imageEditorTitle">画像オーバーレイ</h2>
+          <span id="imageSummary" class="image-summary mono" role="status" aria-live="polite"></span>
+        </div>
+        <div class="row image-import-row">
+          <label class="file image-load">画像を追加／再読み込み<input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" multiple></label>
+          <span id="imageLoadStatus" class="muted" role="status" aria-live="polite">透過PNGも使えます</span>
+        </div>
+        <p id="imageEmpty" class="hint">イラストやロゴを重ねて、文字と同じ登場・待機・退場の動きを付けられます。</p>
+        <div id="imageLayerList" class="image-layer-list" role="group" aria-label="画像レイヤー（左から奥、手前の順）"></div>
+        <p id="imageMissing" class="mv-warning" role="status" hidden></p>
+        <div id="imageToolbar" class="image-toolbar" hidden>
+          <div class="image-actions" role="group" aria-label="選択画像の編集">
+            <button id="imageDuplicate" type="button">画像を複製</button>
+            <button id="imageBack" type="button" title="同じ重なり位置の画像の中で1つ奥へ移動">← 奥へ</button>
+            <button id="imageFront" type="button" title="同じ重なり位置の画像の中で1つ手前へ移動">手前へ →</button>
+            <button id="imageDelete" type="button" class="image-delete">画像を削除</button>
+          </div>
+          <div class="image-history" role="group" aria-label="画像編集の履歴">
+            <button id="imageUndo" type="button" class="ghost" title="画像編集を元に戻す">↶ 画像を戻す</button>
+            <button id="imageRedo" type="button" class="ghost" title="画像編集をやり直す">↷ やり直す</button>
+          </div>
+        </div>
+        <div id="imageControls" class="image-settings" hidden>
+          <p id="imageSelection" class="image-selection" role="status" aria-live="polite"></p>
+          <div class="image-timing">
+            <label class="field" for="imageStart">表示開始（秒）<input id="imageStart" type="number" min="0" step="0.01" inputmode="decimal"></label>
+            <button id="imageSetStart" type="button" class="ghost">現在位置を開始に</button>
+            <label class="field" for="imageEnd">表示終了（秒）<input id="imageEnd" type="number" min="0" step="0.01" inputmode="decimal"></label>
+            <button id="imageSetEnd" type="button" class="ghost">現在位置を終了に</button>
+          </div>
+          <label class="image-opacity" for="imageTransparency"><span>透明度</span><output id="imageTransparencyValue" for="imageTransparency">0%</output><input id="imageTransparency" type="range" min="0" max="100" step="1" value="0"><small>0%でくっきり、100%で見えなくなります</small></label>
+          <div class="image-transform-grid">
+            <label class="field" for="imageX">左右の位置（%）<input id="imageX" type="number" min="-100" max="200" step="1" inputmode="decimal"></label>
+            <label class="field" for="imageY">上下の位置（%）<input id="imageY" type="number" min="-100" max="200" step="1" inputmode="decimal"></label>
+            <label class="field" for="imageScale">大きさ（%）<input id="imageScale" type="number" min="1" max="400" step="1" inputmode="decimal"></label>
+            <label class="field" for="imageRotation">回転（°）<input id="imageRotation" type="number" min="-360" max="360" step="1" inputmode="decimal"></label>
+          </div>
+          <div class="image-motion-grid">
+            <label class="field" for="imageMode">動かし方<select id="imageMode"><option value="whole">画像を一枚で動かす</option><option value="tiles">タイルに分けて動かす</option></select></label>
+            <label class="field" for="imagePlane">文字との重なり<select id="imagePlane"><option value="belowText">文字の後ろ</option><option value="aboveText">文字の前</option></select></label>
+          </div>
+          <div class="image-animation-grid">
+            <label class="field" for="imageEnter">登場アニメ<select id="imageEnter"></select></label>
+            <label class="field" for="imageHold">待機アニメ<select id="imageHold"></select></label>
+            <label class="field" for="imageExit">退場アニメ<select id="imageExit"></select></label>
+          </div>
+          <div class="image-motion-grid">
+            <label class="field" for="imageInDur">登場にかける秒数<input id="imageInDur" type="number" min="0" step="0.05" inputmode="decimal"></label>
+            <label class="field" for="imageOutDur">退場にかける秒数<input id="imageOutDur" type="number" min="0" step="0.05" inputmode="decimal"></label>
+          </div>
+          <div class="image-apply-row">
+            <label class="image-flip"><input id="imageFlip" type="checkbox">左右反転</label>
+            <button id="imageReroll" type="button" class="ghost" title="ランダムな動きのばらつきを変える">動きを再抽選</button>
+            <button id="imageApply" type="button" class="primary">画像に適用</button>
+          </div>
+          <p id="imageDirty" class="image-dirty" role="status" hidden>未適用の変更があります。「画像に適用」で反映します。</p>
+          <p class="hint image-hint">位置50%が中央、大きさ100%が画面に収まる最大サイズ。タイルでは一文字ずつの動きを画像の断片に使います。画像の時刻は編集後の動画全体に対応します。</p>
+        </div>
+      </section>
+      <canvas id="timeline" aria-label="歌詞タイムライン（クリックで移動）"></canvas>
       <div class="cutinfo" id="cutInfo"></div>
     </section>
 
